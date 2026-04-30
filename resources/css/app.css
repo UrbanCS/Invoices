@@ -1,0 +1,20 @@
+@import url('https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body { @apply bg-stone-50 text-villeneuve-ink antialiased; }
+  input, select, textarea { @apply rounded border-villeneuve-line shadow-sm focus:border-villeneuve-green focus:ring-villeneuve-green; }
+}
+
+@layer components {
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded border border-transparent px-4 py-2 text-sm font-semibold transition; }
+  .btn-primary { @apply bg-villeneuve-forest text-white hover:bg-villeneuve-green; }
+  .btn-secondary { @apply border-villeneuve-line bg-white text-villeneuve-forest hover:bg-villeneuve-mint; }
+  .panel { @apply border border-villeneuve-line bg-white shadow-sm; }
+  .label { @apply text-xs font-bold uppercase tracking-wide text-stone-500; }
+  .table th { @apply bg-villeneuve-mint px-3 py-2 text-left text-xs font-bold uppercase text-villeneuve-forest; }
+  .table td { @apply border-t border-villeneuve-line px-3 py-2 align-top; }
+}
