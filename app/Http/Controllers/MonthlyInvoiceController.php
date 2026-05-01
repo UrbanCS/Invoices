@@ -25,12 +25,13 @@ class MonthlyInvoiceController extends Controller
     {
         $query = MonthlyInvoice::with('client')
             ->when(request('client_id'), fn ($q) => $q->where('client_id', request('client_id')))
+            ->when(request('client_name'), fn ($q) => $q->whereHas('client', fn ($clientQuery) => $clientQuery->where('name', 'like', '%'.request('client_name').'%')))
             ->when(request('status'), fn ($q) => $q->where('status', request('status')))
             ->when(request('invoice_number'), fn ($q) => $q->where('invoice_number', 'like', '%'.request('invoice_number').'%'))
             ->when(request('year'), fn ($q) => $q->where('invoice_year', request('year')));
 
         return view('monthly-invoices.index', [
-            'invoices' => $query->latest('invoice_date')->paginate(20),
+            'invoices' => $query->latest('invoice_date')->paginate(20)->withQueryString(),
             'clients' => Client::orderBy('name')->get(),
         ]);
     }
@@ -83,7 +84,7 @@ class MonthlyInvoiceController extends Controller
         $this->recalculate($invoice, $calculator);
         $audit->record('monthly_invoice.created', $invoice);
 
-        return redirect()->route('monthly-invoices.show', $invoice)->with('status', 'Invoice draft created.');
+        return redirect()->route('monthly-invoices.show', $invoice)->with('status', 'Brouillon de facture créé.');
     }
 
     public function show(MonthlyInvoice $invoice, MoneyFormatter $money): View
@@ -117,7 +118,7 @@ class MonthlyInvoiceController extends Controller
         $this->recalculate($invoice, $calculator);
         $audit->record('monthly_invoice.updated', $invoice, $before);
 
-        return redirect()->route('monthly-invoices.show', $invoice)->with('status', 'Invoice updated.');
+        return redirect()->route('monthly-invoices.show', $invoice)->with('status', 'Facture mise à jour.');
     }
 
     public function approve(MonthlyInvoice $invoice, AuditLogService $audit): RedirectResponse
@@ -126,7 +127,7 @@ class MonthlyInvoiceController extends Controller
         $invoice->update(['status' => 'approved']);
         $invoice->dailyRecords()->update(['status' => 'invoiced']);
         $audit->record('monthly_invoice.approved', $invoice);
-        return back()->with('status', 'Invoice approved.');
+        return back()->with('status', 'Facture approuvée.');
     }
 
     public function generatePdf(MonthlyInvoice $invoice, InvoicePdfService $pdf, AuditLogService $audit): RedirectResponse
@@ -134,7 +135,7 @@ class MonthlyInvoiceController extends Controller
         $this->authorizeInvoice($invoice, true);
         $pdf->generate($invoice);
         $audit->record('monthly_invoice.pdf_generated', $invoice);
-        return back()->with('status', 'PDF generated.');
+        return back()->with('status', 'PDF généré.');
     }
 
     public function download(MonthlyInvoice $invoice)
@@ -149,7 +150,7 @@ class MonthlyInvoiceController extends Controller
         $this->authorizeInvoice($invoice, true);
         $invoice->update(['status' => 'sent']);
         $audit->record('monthly_invoice.sent', $invoice);
-        return back()->with('status', 'Invoice marked sent.');
+        return back()->with('status', 'Facture marquée envoyée.');
     }
 
     public function markPaid(MonthlyInvoice $invoice, AuditLogService $audit): RedirectResponse
@@ -158,14 +159,14 @@ class MonthlyInvoiceController extends Controller
         $invoice->update(['status' => 'paid']);
         $invoice->payments()->create(['amount_cents' => $invoice->grand_total_cents, 'paid_at' => now(), 'method' => 'manual']);
         $audit->record('monthly_invoice.paid', $invoice);
-        return back()->with('status', 'Invoice marked paid.');
+        return back()->with('status', 'Facture marquée payée.');
     }
 
     public function cancel(MonthlyInvoice $invoice): RedirectResponse
     {
         $this->authorizeInvoice($invoice, true);
         $invoice->update(['status' => 'cancelled']);
-        return back()->with('status', 'Invoice cancelled.');
+        return back()->with('status', 'Facture annulée.');
     }
 
     public function export(MonthlyInvoice $invoice, CsvExportService $csv)
@@ -190,7 +191,7 @@ class MonthlyInvoiceController extends Controller
             'uploaded_by' => Auth::id(),
         ]);
 
-        return back()->with('status', 'Invoice attachment uploaded.');
+        return back()->with('status', 'Pièce jointe ajoutée à la facture.');
     }
 
     private function validated(Request $request, ?int $ignoreId = null): array
