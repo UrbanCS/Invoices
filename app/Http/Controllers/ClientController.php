@@ -25,7 +25,7 @@ class ClientController extends Controller
         $client = Client::create($this->validated($request));
         $audit->record('client.created', $client);
 
-        return redirect()->route('clients.show', $client)->with('status', 'Client created.');
+        return redirect()->route('clients.show', $client)->with('status', 'Client créé.');
     }
 
     public function show(Client $client): View
@@ -44,13 +44,13 @@ class ClientController extends Controller
         $client->update($this->validated($request));
         $audit->record('client.updated', $client, $before);
 
-        return redirect()->route('clients.show', $client)->with('status', 'Client updated.');
+        return redirect()->route('clients.show', $client)->with('status', 'Client mis à jour.');
     }
 
     public function destroy(Client $client): RedirectResponse
     {
         $client->update(['is_active' => false]);
-        return redirect()->route('clients.index')->with('status', 'Client archived.');
+        return redirect()->route('clients.index')->with('status', 'Client archivé.');
     }
 
     private function validated(Request $request): array

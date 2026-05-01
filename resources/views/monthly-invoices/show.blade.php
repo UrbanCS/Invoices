@@ -68,7 +68,10 @@
         <form class="mt-6 border-t pt-4" method="post" enctype="multipart/form-data" action="{{ route('monthly-invoices.attachments', $invoice) }}">
             @csrf
             <label class="label">Pièce jointe</label>
-            <input class="mt-2 w-full" type="file" name="attachment">
+            <label class="btn btn-secondary mt-2 cursor-pointer">
+                Choisir un fichier
+                <input class="sr-only" type="file" name="attachment">
+            </label>
             <button class="btn btn-secondary mt-3 w-full">Téléverser</button>
         </form>
     </aside>

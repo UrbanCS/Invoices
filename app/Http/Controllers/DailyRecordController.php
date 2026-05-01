@@ -43,7 +43,7 @@ class DailyRecordController extends Controller
         $this->syncItems($record, $request, $money);
         $audit->record('daily_record.created', $record);
 
-        return redirect()->route('daily-records.show', $record)->with('status', 'Daily record saved.');
+        return redirect()->route('daily-records.show', $record)->with('status', 'Registre sauvegardé.');
     }
 
     public function show(DailyRecord $dailyRecord, MoneyFormatter $money): View
@@ -71,7 +71,7 @@ class DailyRecordController extends Controller
         $this->syncItems($dailyRecord, $request, $money);
         $audit->record('daily_record.updated', $dailyRecord, $before);
 
-        return redirect()->route('daily-records.show', $dailyRecord)->with('status', 'Daily record updated.');
+        return redirect()->route('daily-records.show', $dailyRecord)->with('status', 'Registre mis à jour.');
     }
 
     public function review(DailyRecord $dailyRecord, AuditLogService $audit): RedirectResponse
@@ -80,7 +80,7 @@ class DailyRecordController extends Controller
         $dailyRecord->update(['status' => 'reviewed']);
         $audit->record('daily_record.reviewed', $dailyRecord);
 
-        return back()->with('status', 'Daily record reviewed.');
+        return back()->with('status', 'Registre marqué révisé.');
     }
 
     public function attachments(Request $request, DailyRecord $dailyRecord): RedirectResponse
@@ -99,7 +99,7 @@ class DailyRecordController extends Controller
             'uploaded_by' => Auth::id(),
         ]);
 
-        return back()->with('status', 'Attachment uploaded.');
+        return back()->with('status', 'Pièce jointe téléversée.');
     }
 
     private function validated(Request $request): array
