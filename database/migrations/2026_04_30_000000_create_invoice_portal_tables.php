@@ -117,7 +117,7 @@ return new class extends Migration {
             $table->string('pdf_path')->nullable();
             $table->foreignId('created_by')->constrained('users')->restrictOnDelete();
             $table->timestamps();
-            $table->index(['client_id', 'invoice_year', 'invoice_month', 'status']);
+            $table->index(['client_id', 'invoice_year', 'invoice_month', 'status'], 'mi_client_period_status_idx');
         });
 
         Schema::create('monthly_invoice_entries', function (Blueprint $table) {
