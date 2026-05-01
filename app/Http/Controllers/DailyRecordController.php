@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Client;
+use App\Models\BusinessSetting;
 use App\Models\DailyRecord;
 use App\Models\UploadedDocument;
 use App\Services\AuditLogService;
@@ -31,6 +32,7 @@ class DailyRecordController extends Controller
             'record' => new DailyRecord(['service_date' => now(), 'status' => 'draft']),
             'clients' => Client::with('activeCategories')->where('is_active', true)->orderBy('name')->get(),
             'items' => collect(),
+            'settings' => BusinessSetting::first(),
         ]);
     }
 
@@ -57,6 +59,7 @@ class DailyRecordController extends Controller
             'record' => $dailyRecord->load('items'),
             'clients' => Client::with('activeCategories')->where('is_active', true)->orderBy('name')->get(),
             'items' => $dailyRecord->items,
+            'settings' => BusinessSetting::first(),
         ]);
     }
 

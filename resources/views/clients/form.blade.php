@@ -12,7 +12,7 @@
     <div><label class="label">Email</label><input class="mt-1 w-full" name="email" value="{{ old('email', $client->email) }}"></div>
     <div><label class="label">Tax profile</label><select class="mt-1 w-full" name="tax_profile"><option value="on_hst" @selected(old('tax_profile',$client->tax_profile)==='on_hst')>Ontario HST/GST-style</option><option value="qc_tps_tvq" @selected(old('tax_profile',$client->tax_profile)==='qc_tps_tvq')>Québec TPS/TVQ</option><option value="custom" @selected(old('tax_profile',$client->tax_profile)==='custom')>Custom</option></select></div>
     <div><label class="label">Language</label><select class="mt-1 w-full" name="default_language"><option value="en" @selected(old('default_language',$client->default_language)==='en')>English</option><option value="fr" @selected(old('default_language',$client->default_language)==='fr')>French</option></select></div>
-    <div><label class="label">Client logo</label><input class="mt-1 w-full" type="file" name="logo"></div>
+    <div><label class="label">Logo du client</label><input class="mt-1 w-full" type="file" name="logo"></div>
     <div class="md:col-span-2"><label class="label">Notes</label><textarea class="mt-1 w-full" name="notes">{{ old('notes', $client->notes) }}</textarea></div>
     <label class="flex items-center gap-2"><input type="checkbox" name="is_active" value="1" @checked(old('is_active', $client->is_active ?? true))> Active</label>
     <div class="md:col-span-2"><button class="btn btn-primary">Save Client</button></div>
