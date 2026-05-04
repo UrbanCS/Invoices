@@ -17,7 +17,7 @@ class DashboardController extends Controller
 
         return view('dashboard.index', [
             'invoiceCount' => MonthlyInvoice::whereBetween('invoice_date', [$start, $end])->count(),
-            'revenueCents' => MonthlyInvoice::where('status', 'paid')->whereBetween('invoice_date', [$start, $end])->sum('grand_total_cents'),
+            'revenueCents' => MonthlyInvoice::where('status', '!=', 'cancelled')->whereBetween('invoice_date', [$start, $end])->sum('grand_total_cents'),
             'draftCount' => MonthlyInvoice::where('status', 'draft')->count(),
             'sentCount' => MonthlyInvoice::where('status', 'sent')->count(),
             'paidCount' => MonthlyInvoice::where('status', 'paid')->count(),

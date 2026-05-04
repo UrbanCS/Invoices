@@ -8,7 +8,7 @@
 </div>
 <div class="mt-6 grid gap-4 md:grid-cols-5">
     <div class="panel p-5"><p class="label">{{ __('app.invoices_this_month') }}</p><p class="mt-2 text-3xl font-bold">{{ $invoiceCount }}</p></div>
-    <div class="panel p-5"><p class="label">{{ __('app.revenue_this_month') }}</p><p class="mt-2 text-3xl font-bold">{{ $money->format($revenueCents) }}</p></div>
+    <div class="panel p-5"><p class="label">{{ __('app.revenue_this_month') }}</p><p class="mt-2 text-3xl font-bold">{{ $money->format($revenueCents, 'fr') }}</p></div>
     <div class="panel p-5"><p class="label">{{ __('app.draft') }}</p><p class="mt-2 text-3xl font-bold">{{ $draftCount }}</p></div>
     <div class="panel p-5"><p class="label">{{ __('app.sent') }}</p><p class="mt-2 text-3xl font-bold">{{ $sentCount }}</p></div>
     <div class="panel p-5"><p class="label">{{ __('app.paid') }}</p><p class="mt-2 text-3xl font-bold">{{ $paidCount }}</p></div>

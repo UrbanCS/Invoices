@@ -15,7 +15,7 @@ return [
     'new_daily_record' => 'Nouveau registre',
     'new_invoice' => 'Nouvelle facture',
     'invoices_this_month' => 'Factures ce mois-ci',
-    'revenue_this_month' => 'Revenus ce mois-ci',
+    'revenue_this_month' => 'Total facturé ce mois-ci',
     'draft' => 'Brouillons',
     'sent' => 'Envoyées',
     'paid' => 'Payées',
