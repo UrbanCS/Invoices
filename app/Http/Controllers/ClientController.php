@@ -3,9 +3,17 @@
 namespace App\Http\Controllers;
 
 use App\Models\Client;
+use App\Models\AuditLog;
+use App\Models\DailyRecordItem;
+use App\Models\InvoiceAdjustment;
+use App\Models\MonthlyInvoiceEntry;
+use App\Models\Payment;
+use App\Models\UploadedDocument;
+use App\Models\User;
 use App\Services\AuditLogService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 class ClientController extends Controller
@@ -49,15 +57,41 @@ class ClientController extends Controller
 
     public function destroy(Client $client): RedirectResponse
     {
-        if ($client->invoices()->exists() || $client->dailyRecords()->exists()) {
-            $client->update(['is_active' => false]);
+        DB::transaction(function () use ($client) {
+            $invoiceIds = $client->invoices()->pluck('id');
+            $dailyRecordIds = $client->dailyRecords()->pluck('id');
 
-            return redirect()->route('clients.index')->with('status', 'Client archivé, car il possède déjà des données liées.');
-        }
+            UploadedDocument::query()
+                ->where('client_id', $client->id)
+                ->orWhereIn('monthly_invoice_id', $invoiceIds)
+                ->orWhereIn('daily_record_id', $dailyRecordIds)
+                ->delete();
 
-        $client->delete();
+            Payment::whereIn('monthly_invoice_id', $invoiceIds)->delete();
+            InvoiceAdjustment::whereIn('monthly_invoice_id', $invoiceIds)->delete();
+            MonthlyInvoiceEntry::whereIn('monthly_invoice_id', $invoiceIds)->delete();
 
-        return redirect()->route('clients.index')->with('status', 'Client supprimé.');
+            DB::table('monthly_invoice_daily_record')
+                ->whereIn('monthly_invoice_id', $invoiceIds)
+                ->orWhereIn('daily_record_id', $dailyRecordIds)
+                ->delete();
+
+            DailyRecordItem::whereIn('daily_record_id', $dailyRecordIds)->delete();
+
+            $client->invoices()->delete();
+            $client->dailyRecords()->delete();
+
+            $client->users()->delete();
+            $client->taxRates()->delete();
+            $client->categories()->delete();
+
+            User::where('client_id', $client->id)->delete();
+            AuditLog::where('entity_type', Client::class)->where('entity_id', $client->id)->delete();
+
+            $client->delete();
+        });
+
+        return redirect()->route('clients.index')->with('status', 'Client supprimé définitivement.');
     }
 
     private function validated(Request $request): array

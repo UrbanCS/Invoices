@@ -37,6 +37,16 @@ class Client extends Model
         return $this->hasMany(DailyRecord::class);
     }
 
+    public function users(): HasMany
+    {
+        return $this->hasMany(User::class);
+    }
+
+    public function documents(): HasMany
+    {
+        return $this->hasMany(UploadedDocument::class);
+    }
+
     public function taxRates(): HasMany
     {
         return $this->hasMany(TaxRate::class)->orderBy('sort_order');

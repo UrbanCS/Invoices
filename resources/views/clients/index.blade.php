@@ -20,10 +20,10 @@
                 <td>{{ $client->default_language === 'fr' ? 'Français' : 'Anglais' }}</td>
                 <td>{{ $client->is_active ? 'Actif' : 'Archivé' }}</td>
                 <td class="text-right">
-                    <form method="post" action="{{ route('clients.destroy', $client) }}" onsubmit="return confirm('Supprimer ce client? Les clients avec données liées seront archivés.');">
+                    <form method="post" action="{{ route('clients.destroy', $client) }}" onsubmit="return confirm('Supprimer définitivement ce client et toutes ses données liées? Cette action est irréversible.');">
                         @csrf
                         @method('delete')
-                        <button class="btn btn-secondary">Supprimer</button>
+                        <button class="btn btn-secondary">Supprimer définitivement</button>
                     </form>
                 </td>
             </tr>
