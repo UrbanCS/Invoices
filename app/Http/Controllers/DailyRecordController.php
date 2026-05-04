@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Client;
 use App\Models\BusinessSetting;
+use App\Models\ClientCategory;
 use App\Models\DailyRecord;
 use App\Models\UploadedDocument;
 use App\Services\AuditLogService;
@@ -11,6 +12,7 @@ use App\Services\MoneyFormatter;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class DailyRecordController extends Controller
@@ -121,10 +123,30 @@ class DailyRecordController extends Controller
     private function syncItems(DailyRecord $record, Request $request, MoneyFormatter $money): void
     {
         $record->items()->delete();
+        $validCategoryIds = ClientCategory::where('client_id', $record->client_id)->pluck('id')->all();
+
         foreach ($request->input('items', []) as $row) {
-            if (blank($row['client_category_id'] ?? null) && blank($row['amount'] ?? null)) {
+            $hasContent = filled($row['customer_name'] ?? null)
+                || filled($row['department_or_room'] ?? null)
+                || filled($row['description'] ?? null)
+                || filled($row['amount'] ?? null);
+
+            if (! $hasContent) {
                 continue;
             }
+
+            if (blank($row['client_category_id'] ?? null)) {
+                throw ValidationException::withMessages([
+                    'items' => 'Choisis une catégorie pour chaque ligne remplie.',
+                ]);
+            }
+
+            if (! in_array((int) $row['client_category_id'], $validCategoryIds, true)) {
+                throw ValidationException::withMessages([
+                    'items' => 'La catégorie choisie ne correspond pas au client sélectionné.',
+                ]);
+            }
+
             $record->items()->create([
                 'client_category_id' => $row['client_category_id'],
                 'customer_name' => $row['customer_name'] ?? null,

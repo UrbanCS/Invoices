@@ -37,6 +37,29 @@
             <input class="sr-only" type="file" name="logo">
         </label>
     </div>
+    <div class="md:col-span-2">
+        <label class="label">Catégories de facturation</label>
+        <p class="mt-1 text-sm text-stone-600">
+            Ajoute les catégories qui apparaîtront dans les registres et les factures de ce client. Exemple : Valet, Staff, Guest, Employés, Clients.
+        </p>
+        <div class="mt-3 grid gap-3 md:grid-cols-4">
+            @for($i = 0; $i < 4; $i++)
+                <input
+                    class="w-full"
+                    name="category_names[]"
+                    value="{{ old("category_names.$i", $categoryNames[$i] ?? '') }}"
+                    placeholder="{{ $i === 0 ? 'Valet' : 'Catégorie '.($i + 1) }}"
+                >
+            @endfor
+        </div>
+        @if($client->exists && $client->categories->isNotEmpty())
+            <div class="mt-3 flex flex-wrap gap-2 text-sm">
+                @foreach($client->categories as $category)
+                    <span class="rounded border border-villeneuve-line bg-villeneuve-mint px-3 py-1 font-semibold text-villeneuve-forest">{{ $category->name }}</span>
+                @endforeach
+            </div>
+        @endif
+    </div>
     <div class="md:col-span-2"><label class="label">Notes</label><textarea class="mt-1 w-full" name="notes">{{ old('notes', $client->notes) }}</textarea></div>
     <label class="flex items-center gap-2"><input type="checkbox" name="is_active" value="1" @checked(old('is_active', $client->is_active ?? true))> Actif</label>
     <div class="md:col-span-2"><button class="btn btn-primary">Sauvegarder</button></div>

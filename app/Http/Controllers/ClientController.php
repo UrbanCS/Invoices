@@ -25,12 +25,13 @@ class ClientController extends Controller
 
     public function create(): View
     {
-        return view('clients.form', ['client' => new Client()]);
+        return view('clients.form', ['client' => new Client(), 'categoryNames' => collect()]);
     }
 
     public function store(Request $request, AuditLogService $audit): RedirectResponse
     {
         $client = Client::create($this->validated($request));
+        $this->syncNewCategories($client, $request);
         $audit->record('client.created', $client);
 
         return redirect()->route('clients.show', $client)->with('status', 'Client créé.');
@@ -43,13 +44,14 @@ class ClientController extends Controller
 
     public function edit(Client $client): View
     {
-        return view('clients.form', ['client' => $client]);
+        return view('clients.form', ['client' => $client->load('categories'), 'categoryNames' => $client->categories->pluck('name')]);
     }
 
     public function update(Request $request, Client $client, AuditLogService $audit): RedirectResponse
     {
         $before = $client->toArray();
         $client->update($this->validated($request));
+        $this->syncNewCategories($client, $request);
         $audit->record('client.updated', $client, $before);
 
         return redirect()->route('clients.show', $client)->with('status', 'Client mis à jour.');
@@ -119,5 +121,25 @@ class ClientController extends Controller
         unset($data['logo']);
 
         return $data;
+    }
+
+    private function syncNewCategories(Client $client, Request $request): void
+    {
+        $names = collect($request->input('category_names', []))
+            ->map(fn ($name) => trim((string) $name))
+            ->filter()
+            ->unique(fn ($name) => mb_strtolower($name))
+            ->values();
+
+        if ($names->isEmpty() && ! $client->categories()->exists()) {
+            $names = collect(['Valet']);
+        }
+
+        foreach ($names as $index => $name) {
+            $client->categories()->firstOrCreate(
+                ['name' => $name],
+                ['sort_order' => $index + 1, 'is_taxable' => true, 'is_active' => true]
+            );
+        }
     }
 }

@@ -1,5 +1,8 @@
 @extends('layouts.app')
 @section('content')
+@php
+    $availableCategories = $clients->flatMap->activeCategories->unique('id');
+@endphp
 <form x-data="{rows: {{ max(5, $items->count()) }}}" class="panel bg-white p-6" method="post" action="{{ $record->exists ? route('daily-records.update',$record) : route('daily-records.store') }}">
     @csrf @if($record->exists) @method('put') @endif
     <div class="border-b-4 border-villeneuve-forest pb-5">
@@ -13,12 +16,29 @@
                 <div><div class="text-3xl font-black text-villeneuve-forest">Nettoyeur Villeneuve</div><div class="label mt-1">Registre valet quotidien</div></div>
             </div>
             <div class="grid gap-3 md:grid-cols-3">
-                <div><label class="label">Hôtel / client</label><select class="mt-1 w-full" name="client_id" required>@foreach($clients as $client)<option value="{{ $client->id }}" @selected(old('client_id',$record->client_id)==$client->id)>{{ $client->name }}</option>@endforeach</select></div>
+                <div>
+                    <label class="label">Hôtel / client</label>
+                    <select class="mt-1 w-full" name="client_id" required>
+                        <option value="" disabled @selected(blank(old('client_id', $record->client_id)))>Choisir un client</option>
+                        @foreach($clients as $client)
+                            <option value="{{ $client->id }}" @selected(old('client_id',$record->client_id)==$client->id)>{{ $client->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
                 <div><label class="label">Date</label><input class="mt-1 w-full" type="date" name="service_date" value="{{ old('service_date', optional($record->service_date)->format('Y-m-d') ?? now()->toDateString()) }}" required></div>
                 <div><label class="label">Référence</label><input class="mt-1 w-full" name="reference_number" value="{{ old('reference_number',$record->reference_number) }}"></div>
             </div>
         </div>
     </div>
+    @if($clients->isEmpty())
+        <div class="mt-4 border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">
+            Aucun client actif pour l’instant. Crée d’abord un client dans la section Clients.
+        </div>
+    @elseif($availableCategories->isEmpty())
+        <div class="mt-4 border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">
+            Aucune catégorie active n’est disponible. Ajoute au moins une catégorie au client avant de remplir un registre.
+        </div>
+    @endif
     @if($record->status === 'invoiced')<div class="mt-4 border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">Ce registre a déjà été facturé. Modifier avec prudence.</div>@endif
     <div class="mt-6 overflow-x-auto">
         <table class="w-full border-collapse text-sm">
@@ -30,7 +50,14 @@
                     <td class="border p-1"><input class="w-full border-0" name="items[{{ $i }}][customer_name]" value="{{ old("items.$i.customer_name", $item?->customer_name) }}"></td>
                     <td class="border p-1"><input class="w-full border-0" name="items[{{ $i }}][department_or_room]" value="{{ old("items.$i.department_or_room", $item?->department_or_room) }}"></td>
                     <td class="border p-1"><input class="w-full border-0" name="items[{{ $i }}][description]" value="{{ old("items.$i.description", $item?->description) }}"></td>
-                    <td class="border p-1"><select class="w-full border-0" name="items[{{ $i }}][client_category_id]">@foreach($clients->flatMap->activeCategories->unique('id') as $category)<option value="{{ $category->id }}" @selected(old("items.$i.client_category_id", $item?->client_category_id)==$category->id)>{{ $category->client->name ?? '' }} {{ $category->name }}</option>@endforeach</select></td>
+                    <td class="border p-1">
+                        <select class="w-full border-0" name="items[{{ $i }}][client_category_id]">
+                            <option value="">Choisir</option>
+                            @foreach($availableCategories as $category)
+                                <option value="{{ $category->id }}" @selected(old("items.$i.client_category_id", $item?->client_category_id)==$category->id)>{{ $category->client->name ?? '' }} - {{ $category->name }}</option>
+                            @endforeach
+                        </select>
+                    </td>
                     <td class="border p-1"><input class="w-full border-0 text-right" name="items[{{ $i }}][amount]" value="{{ old("items.$i.amount", $item ? number_format($item->amount_cents/100,2) : '') }}"></td>
                 </tr>
             @endfor
@@ -48,6 +75,6 @@
         <div class="rounded border border-villeneuve-line bg-villeneuve-mint p-3 text-sm font-bold text-villeneuve-forest">TPS / TVH: {{ $settings?->gst_number ?: '824989842' }}</div>
     </div>
     <div class="mt-5"><label class="label">Notes</label><textarea class="mt-1 w-full" name="notes">{{ old('notes',$record->notes) }}</textarea></div>
-    <div class="mt-6 flex gap-3"><button class="btn btn-secondary" name="action" value="draft">Sauvegarder brouillon</button><button class="btn btn-primary" name="action" value="review">Marquer révisé</button></div>
+    <div class="mt-6 flex gap-3"><button class="btn btn-secondary" name="action" value="draft" @disabled($clients->isEmpty() || $availableCategories->isEmpty())>Sauvegarder brouillon</button><button class="btn btn-primary" name="action" value="review" @disabled($clients->isEmpty() || $availableCategories->isEmpty())>Marquer révisé</button></div>
 </form>
 @endsection
