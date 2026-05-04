@@ -17,6 +17,11 @@
         @endforeach
         <tr><td colspan="4" class="text-right font-bold">Total quotidien</td><td class="text-right font-bold">{{ $money->format($record->totalCents(), $record->client->default_language) }}</td></tr>
     </table>
+    <div class="mt-5 grid gap-4 border-t border-villeneuve-line pt-5 md:grid-cols-3">
+        <div><span class="label">Reçu par</span><p class="mt-1 font-semibold">{{ $record->received_by ?: 'Non indiqué' }}</p></div>
+        <div><span class="label">Hôtel / signature</span><p class="mt-1 font-semibold">{{ $record->hotel_signature ?: 'Non indiqué' }}</p></div>
+        <div><span class="label">TPS / TVH</span><p class="mt-1 font-semibold">{{ $settings?->gst_number ?: '824989842' }}</p></div>
+    </div>
 </div>
 
 <div class="mt-6 grid gap-6 lg:grid-cols-2">

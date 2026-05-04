@@ -42,6 +42,11 @@
         <button type="button" class="btn btn-secondary" x-on:click="rows = Math.max(1, rows - 1)">Retirer une ligne</button>
         <div class="text-right text-lg font-bold text-villeneuve-forest">Total calculé après sauvegarde</div>
     </div>
+    <div class="mt-5 grid gap-4 border-t border-villeneuve-line pt-5 md:grid-cols-3">
+        <div><label class="label">Reçu par</label><input class="mt-1 w-full" name="received_by" value="{{ old('received_by', $record->received_by) }}"></div>
+        <div><label class="label">Hôtel / signature</label><input class="mt-1 w-full" name="hotel_signature" value="{{ old('hotel_signature', $record->hotel_signature) }}"></div>
+        <div class="rounded border border-villeneuve-line bg-villeneuve-mint p-3 text-sm font-bold text-villeneuve-forest">TPS / TVH: {{ $settings?->gst_number ?: '824989842' }}</div>
+    </div>
     <div class="mt-5"><label class="label">Notes</label><textarea class="mt-1 w-full" name="notes">{{ old('notes',$record->notes) }}</textarea></div>
     <div class="mt-6 flex gap-3"><button class="btn btn-secondary" name="action" value="draft">Sauvegarder brouillon</button><button class="btn btn-primary" name="action" value="review">Marquer révisé</button></div>
 </form>

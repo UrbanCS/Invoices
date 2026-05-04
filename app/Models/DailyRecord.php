@@ -8,7 +8,16 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class DailyRecord extends Model
 {
-    protected $fillable = ['client_id', 'service_date', 'status', 'reference_number', 'notes', 'created_by'];
+    protected $fillable = [
+        'client_id',
+        'service_date',
+        'status',
+        'reference_number',
+        'received_by',
+        'hotel_signature',
+        'notes',
+        'created_by',
+    ];
 
     protected function casts(): array
     {

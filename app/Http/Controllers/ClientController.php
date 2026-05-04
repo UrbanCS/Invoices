@@ -49,8 +49,15 @@ class ClientController extends Controller
 
     public function destroy(Client $client): RedirectResponse
     {
-        $client->update(['is_active' => false]);
-        return redirect()->route('clients.index')->with('status', 'Client archivé.');
+        if ($client->invoices()->exists() || $client->dailyRecords()->exists()) {
+            $client->update(['is_active' => false]);
+
+            return redirect()->route('clients.index')->with('status', 'Client archivé, car il possède déjà des données liées.');
+        }
+
+        $client->delete();
+
+        return redirect()->route('clients.index')->with('status', 'Client supprimé.');
     }
 
     private function validated(Request $request): array

@@ -49,7 +49,11 @@ class DailyRecordController extends Controller
     public function show(DailyRecord $dailyRecord, MoneyFormatter $money): View
     {
         $this->authorizeRecord($dailyRecord);
-        return view('daily-records.show', ['record' => $dailyRecord->load('client', 'items.category', 'documents'), 'money' => $money]);
+        return view('daily-records.show', [
+            'record' => $dailyRecord->load('client', 'items.category', 'documents'),
+            'money' => $money,
+            'settings' => BusinessSetting::first(),
+        ]);
     }
 
     public function edit(DailyRecord $dailyRecord): View
@@ -108,6 +112,8 @@ class DailyRecordController extends Controller
             'client_id' => ['required', 'exists:clients,id'],
             'service_date' => ['required', 'date'],
             'reference_number' => ['nullable', 'string', 'max:255'],
+            'received_by' => ['nullable', 'string', 'max:255'],
+            'hotel_signature' => ['nullable', 'string', 'max:255'],
             'notes' => ['nullable', 'string'],
         ]);
     }
