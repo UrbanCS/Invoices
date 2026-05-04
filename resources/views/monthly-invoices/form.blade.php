@@ -1,7 +1,10 @@
 @extends('layouts.app')
 
 @section('content')
-@php($selectedClient = $clients->firstWhere('id', old('client_id', $invoice->client_id)) ?? $clients->first())
+@php
+    $selectedClient = $clients->firstWhere('id', (int) old('client_id', $invoice->client_id)) ?? $clients->first();
+    $hasCategories = (bool) $selectedClient?->activeCategories->isNotEmpty();
+@endphp
 
 <div class="flex flex-wrap items-center justify-between gap-4">
     <h1 class="text-3xl font-extrabold text-villeneuve-forest">{{ $invoice->exists ? 'Modifier la facture' : 'Nouvelle facture' }}</h1>
@@ -19,7 +22,17 @@
     <section class="panel grid gap-4 p-6 md:grid-cols-5">
         <div>
             <label class="label">Client</label>
-            <select class="mt-1 w-full" name="client_id">
+            <select
+                class="mt-1 w-full"
+                name="client_id"
+                required
+                @if(! $invoice->exists)
+                    onchange="const url = new URL(window.location.href); url.searchParams.set('client_id', this.value); url.searchParams.set('month', document.querySelector('[name=invoice_month]').value || '{{ $invoice->invoice_month }}'); url.searchParams.set('year', document.querySelector('[name=invoice_year]').value || '{{ $invoice->invoice_year }}'); window.location.href = url.toString();"
+                @endif
+            >
+                @if($clients->isEmpty())
+                    <option value="">Aucun client actif</option>
+                @endif
                 @foreach($clients as $client)
                     <option value="{{ $client->id }}" @selected($selectedClient?->id === $client->id)>{{ $client->name }}</option>
                 @endforeach
@@ -41,6 +54,15 @@
 
     <section class="panel overflow-x-auto p-6">
         <h2 class="text-xl font-bold text-villeneuve-forest">Grille mensuelle</h2>
+        @if($clients->isEmpty())
+            <div class="mt-4 border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">
+                Aucun client actif pour l’instant. Ajoute d’abord un client, puis reviens créer la facture.
+            </div>
+        @elseif(! $hasCategories)
+            <div class="mt-4 border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">
+                Le client sélectionné n’a aucune catégorie active. Ajoute une catégorie au client avant d’entrer des montants.
+            </div>
+        @endif
         <table class="mt-4 w-full border-collapse text-sm">
             <thead>
                 <tr>
@@ -86,6 +108,6 @@
         @endfor
     </section>
 
-    <button class="btn btn-primary">Sauvegarder brouillon</button>
+    <button class="btn btn-primary" @disabled($clients->isEmpty() || ! $hasCategories)>Sauvegarder brouillon</button>
 </form>
 @endsection

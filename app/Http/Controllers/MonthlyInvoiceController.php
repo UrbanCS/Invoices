@@ -17,6 +17,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class MonthlyInvoiceController extends Controller
@@ -40,9 +41,12 @@ class MonthlyInvoiceController extends Controller
     {
         $month = (int) request('month', now()->month);
         $year = (int) request('year', now()->year);
+        $clients = Client::with('activeCategories')->where('is_active', true)->orderBy('name')->get();
+        $selectedClientId = request('client_id') ?: $clients->first()?->id;
 
         return view('monthly-invoices.form', [
             'invoice' => new MonthlyInvoice([
+                'client_id' => $selectedClientId,
                 'invoice_month' => $month,
                 'invoice_year' => $year,
                 'invoice_date' => now(),
@@ -50,7 +54,7 @@ class MonthlyInvoiceController extends Controller
                 'source_mode' => request('source_mode', 'manual_grid'),
                 'status' => 'draft',
             ]),
-            'clients' => Client::with('activeCategories')->where('is_active', true)->orderBy('name')->get(),
+            'clients' => $clients,
             'entries' => collect(),
             'adjustments' => collect(),
         ]);
@@ -62,6 +66,12 @@ class MonthlyInvoiceController extends Controller
         $client = Client::with('activeCategories')->findOrFail($data['client_id']);
         $settings = BusinessSetting::first();
         $categories = $this->categorySnapshot($client);
+
+        if ($data['source_mode'] === 'manual_grid' && $client->activeCategories->isEmpty()) {
+            throw ValidationException::withMessages([
+                'client_id' => 'Ajoute au moins une catégorie au client avant de créer une facture.',
+            ]);
+        }
 
         $invoice = MonthlyInvoice::create([
             ...$data,
@@ -110,6 +120,12 @@ class MonthlyInvoiceController extends Controller
         $before = $invoice->load('entries', 'adjustments')->toArray();
         $data = $this->validated($request, $invoice->id);
         $client = Client::with('activeCategories')->findOrFail($data['client_id']);
+        if ($data['source_mode'] === 'manual_grid' && $client->activeCategories->isEmpty()) {
+            throw ValidationException::withMessages([
+                'client_id' => 'Ajoute au moins une catégorie au client avant de créer une facture.',
+            ]);
+        }
+
         $invoice->update([...$data, 'category_snapshot' => $this->categorySnapshot($client)]);
         $invoice->entries()->delete();
         $this->syncGrid($invoice, $request, $client, $money);
