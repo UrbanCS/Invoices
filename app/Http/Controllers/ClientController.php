@@ -132,7 +132,7 @@ class ClientController extends Controller
             ->values();
 
         if ($names->isEmpty() && ! $client->categories()->exists()) {
-            $names = collect(['Valet']);
+            $names = collect(['Montant']);
         }
 
         foreach ($names as $index => $name) {

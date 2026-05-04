@@ -9,6 +9,7 @@
         'paid' => 'Payée',
         'cancelled' => 'Annulée',
     ];
+    $singleCategory = count($invoice->category_snapshot ?? []) === 1;
 @endphp
 
 <div class="flex flex-wrap items-center justify-between gap-3">
@@ -32,7 +33,7 @@
             <tr>
                 <th>Jour</th>
                 @foreach($invoice->category_snapshot ?? [] as $category)
-                    <th class="text-right">{{ $category['name'] }}</th>
+                    <th class="text-right">{{ $singleCategory ? 'Montant' : $category['name'] }}</th>
                 @endforeach
             </tr>
             @for($day = 1; $day <= 31; $day++)

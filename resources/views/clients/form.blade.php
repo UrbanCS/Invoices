@@ -40,7 +40,7 @@
     <div class="md:col-span-2">
         <label class="label">Catégories de facturation</label>
         <p class="mt-1 text-sm text-stone-600">
-            Ajoute les catégories qui apparaîtront dans les registres et les factures de ce client. Exemple : Valet, Staff, Guest, Employés, Clients.
+            Ajoute les catégories qui apparaîtront dans les registres et les factures de ce client. Pour une facture simple, utilise Montant.
         </p>
         <div class="mt-3 grid gap-3 md:grid-cols-4">
             @for($i = 0; $i < 4; $i++)
@@ -48,7 +48,7 @@
                     class="w-full"
                     name="category_names[]"
                     value="{{ old("category_names.$i", $categoryNames[$i] ?? '') }}"
-                    placeholder="{{ $i === 0 ? 'Valet' : 'Catégorie '.($i + 1) }}"
+                    placeholder="{{ $i === 0 ? 'Montant' : 'Catégorie '.($i + 1) }}"
                 >
             @endfor
         </div>

@@ -4,6 +4,7 @@
 @php
     $selectedClient = $clients->firstWhere('id', (int) old('client_id', $invoice->client_id)) ?? $clients->first();
     $hasCategories = (bool) $selectedClient?->activeCategories->isNotEmpty();
+    $singleCategory = $selectedClient?->activeCategories->count() === 1;
 @endphp
 
 <div class="flex flex-wrap items-center justify-between gap-4">
@@ -68,7 +69,7 @@
                 <tr>
                     <th class="border bg-villeneuve-mint p-2">Jour</th>
                     @foreach($selectedClient?->activeCategories ?? [] as $category)
-                        <th class="border bg-villeneuve-mint p-2 text-right">{{ $category->name }}</th>
+                        <th class="border bg-villeneuve-mint p-2 text-right">{{ $singleCategory ? 'Montant' : $category->name }}</th>
                     @endforeach
                 </tr>
             </thead>
