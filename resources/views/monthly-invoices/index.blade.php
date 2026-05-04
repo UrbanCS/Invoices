@@ -62,10 +62,10 @@
         @forelse($invoices as $invoice)
             <tr>
                 <td><a class="font-bold text-villeneuve-green" href="{{ route('monthly-invoices.show', $invoice) }}">{{ $invoice->invoice_number }}</a></td>
-                <td>{{ $invoice->client->name }}</td>
+                <td>{{ $invoice->client?->name ?? 'Client supprimé' }}</td>
                 <td>{{ $invoice->invoice_month }}/{{ $invoice->invoice_year }}</td>
                 <td>{{ $statuses[$invoice->status] ?? $invoice->status }}</td>
-                <td class="text-right">{{ $money->format($invoice->grand_total_cents, $invoice->client->default_language) }}</td>
+                <td class="text-right">{{ $money->format($invoice->grand_total_cents, $invoice->client?->default_language ?? 'fr') }}</td>
             </tr>
         @empty
             <tr>

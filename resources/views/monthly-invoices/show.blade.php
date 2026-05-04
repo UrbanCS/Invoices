@@ -10,11 +10,12 @@
         'cancelled' => 'Annulée',
     ];
     $singleCategory = count($invoice->category_snapshot ?? []) === 1;
+    $invoiceLanguage = $invoice->client?->default_language ?? 'fr';
 @endphp
 
 <div class="flex flex-wrap items-center justify-between gap-3">
     <div>
-        <p class="label">{{ $invoice->client->name }} · {{ $statuses[$invoice->status] ?? $invoice->status }}</p>
+        <p class="label">{{ $invoice->client?->name ?? 'Client supprimé' }} · {{ $statuses[$invoice->status] ?? $invoice->status }}</p>
         <h1 class="text-3xl font-extrabold text-villeneuve-forest">Facture {{ $invoice->invoice_number }}</h1>
     </div>
     <div class="flex flex-wrap gap-2">
@@ -41,7 +42,7 @@
                     <td class="font-bold">{{ $day }}</td>
                     @foreach($invoice->category_snapshot ?? [] as $category)
                         @php($sum = $invoice->entries->where('service_day', $day)->where('client_category_id', $category['id'])->sum('amount_cents'))
-                        <td class="text-right">{{ $sum ? $money->format($sum, $invoice->client->default_language) : '' }}</td>
+                        <td class="text-right">{{ $sum ? $money->format($sum, $invoiceLanguage) : '' }}</td>
                     @endforeach
                 </tr>
             @endfor
@@ -51,12 +52,12 @@
     <aside class="panel p-6">
         <h2 class="text-xl font-bold text-villeneuve-forest">Totaux</h2>
         <dl class="mt-4 space-y-3">
-            <div class="flex justify-between"><dt>Sous-total</dt><dd>{{ $money->format($invoice->subtotal_cents, $invoice->client->default_language) }}</dd></div>
-            <div class="flex justify-between"><dt>Rabais / crédits</dt><dd>-{{ $money->format($invoice->discount_cents, $invoice->client->default_language) }}</dd></div>
+            <div class="flex justify-between"><dt>Sous-total</dt><dd>{{ $money->format($invoice->subtotal_cents, $invoiceLanguage) }}</dd></div>
+            <div class="flex justify-between"><dt>Rabais / crédits</dt><dd>-{{ $money->format($invoice->discount_cents, $invoiceLanguage) }}</dd></div>
             @foreach($invoice->tax_profile_snapshot ?? [] as $tax)
-                <div class="flex justify-between"><dt>{{ $tax['label'] }}</dt><dd>{{ $money->format($tax['amount_cents'], $invoice->client->default_language) }}</dd></div>
+                <div class="flex justify-between"><dt>{{ $tax['label'] }}</dt><dd>{{ $money->format($tax['amount_cents'], $invoiceLanguage) }}</dd></div>
             @endforeach
-            <div class="border-t pt-3 flex justify-between text-xl font-black text-villeneuve-forest"><dt>Grand total</dt><dd>{{ $money->format($invoice->grand_total_cents, $invoice->client->default_language) }}</dd></div>
+            <div class="border-t pt-3 flex justify-between text-xl font-black text-villeneuve-forest"><dt>Grand total</dt><dd>{{ $money->format($invoice->grand_total_cents, $invoiceLanguage) }}</dd></div>
         </dl>
 
         <div class="mt-6 grid gap-2">

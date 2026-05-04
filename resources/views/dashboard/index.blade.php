@@ -14,7 +14,7 @@
     <div class="panel p-5"><p class="label">{{ __('app.paid') }}</p><p class="mt-2 text-3xl font-bold">{{ $paidCount }}</p></div>
 </div>
 <div class="mt-8 grid gap-6 lg:grid-cols-2">
-    <section class="panel p-5"><h2 class="text-xl font-bold text-villeneuve-forest">{{ __('app.recent_daily_records') }}</h2><table class="table mt-4 w-full">@foreach($dailyRecords as $record)<tr><td>{{ $record->service_date->format('Y-m-d') }}</td><td>{{ $record->client->name }}</td><td>{{ $record->status }}</td></tr>@endforeach</table></section>
-    <section class="panel p-5"><h2 class="text-xl font-bold text-villeneuve-forest">{{ __('app.recent_invoices') }}</h2><table class="table mt-4 w-full">@foreach($invoices as $invoice)<tr><td><a class="font-bold text-villeneuve-green" href="{{ route('monthly-invoices.show', $invoice) }}">{{ $invoice->invoice_number }}</a></td><td>{{ $invoice->client->name }}</td><td>{{ $money->format($invoice->grand_total_cents, $invoice->client->default_language) }}</td></tr>@endforeach</table></section>
+    <section class="panel p-5"><h2 class="text-xl font-bold text-villeneuve-forest">{{ __('app.recent_daily_records') }}</h2><table class="table mt-4 w-full">@foreach($dailyRecords as $record)<tr><td>{{ $record->service_date->format('Y-m-d') }}</td><td>{{ $record->client?->name ?? 'Client supprimé' }}</td><td>{{ $record->status }}</td></tr>@endforeach</table></section>
+    <section class="panel p-5"><h2 class="text-xl font-bold text-villeneuve-forest">{{ __('app.recent_invoices') }}</h2><table class="table mt-4 w-full">@foreach($invoices as $invoice)<tr><td><a class="font-bold text-villeneuve-green" href="{{ route('monthly-invoices.show', $invoice) }}">{{ $invoice->invoice_number }}</a></td><td>{{ $invoice->client?->name ?? 'Client supprimé' }}</td><td>{{ $money->format($invoice->grand_total_cents, $invoice->client?->default_language ?? 'fr') }}</td></tr>@endforeach</table></section>
 </div>
 @endsection

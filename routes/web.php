@@ -22,11 +22,11 @@ Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth')->n
 Route::middleware(['auth', 'role:super_admin,employee'])->group(function () {
     Route::get('/dashboard', DashboardController::class)->name('dashboard');
 
-    Route::resource('daily-records', DailyRecordController::class)->except('destroy');
+    Route::resource('daily-records', DailyRecordController::class)->parameters(['daily-records' => 'dailyRecord'])->except('destroy');
     Route::post('/daily-records/{dailyRecord}/review', [DailyRecordController::class, 'review'])->name('daily-records.review');
     Route::post('/daily-records/{dailyRecord}/attachments', [DailyRecordController::class, 'attachments'])->name('daily-records.attachments');
 
-    Route::resource('monthly-invoices', MonthlyInvoiceController::class)->except('destroy');
+    Route::resource('monthly-invoices', MonthlyInvoiceController::class)->parameters(['monthly-invoices' => 'invoice'])->except('destroy');
     Route::post('/monthly-invoices/{invoice}/approve', [MonthlyInvoiceController::class, 'approve'])->name('monthly-invoices.approve');
     Route::post('/monthly-invoices/{invoice}/generate-pdf', [MonthlyInvoiceController::class, 'generatePdf'])->name('monthly-invoices.generate-pdf');
     Route::get('/monthly-invoices/{invoice}/download', [MonthlyInvoiceController::class, 'download'])->name('monthly-invoices.download');
