@@ -87,7 +87,15 @@ class MonthlyInvoiceController extends Controller
             $invoice->entries()->createMany($aggregator->entriesFromRecords($records)->all());
             $invoice->dailyRecords()->sync($records->pluck('id'));
         } else {
-            $this->syncGrid($invoice, $request, $client, $money);
+            $createdEntries = $this->syncGrid($invoice, $request, $client, $money);
+
+            if ($createdEntries === 0) {
+                $invoice->delete();
+
+                throw ValidationException::withMessages([
+                    'grid' => 'Entre au moins un montant dans la grille mensuelle avant de sauvegarder la facture.',
+                ]);
+            }
         }
 
         $this->syncAdjustments($invoice, $request, $money);
@@ -128,7 +136,14 @@ class MonthlyInvoiceController extends Controller
 
         $invoice->update([...$data, 'category_snapshot' => $this->categorySnapshot($client)]);
         $invoice->entries()->delete();
-        $this->syncGrid($invoice, $request, $client, $money);
+        $createdEntries = $this->syncGrid($invoice, $request, $client, $money);
+
+        if ($data['source_mode'] === 'manual_grid' && $createdEntries === 0) {
+            throw ValidationException::withMessages([
+                'grid' => 'Entre au moins un montant dans la grille mensuelle avant de sauvegarder la facture.',
+            ]);
+        }
+
         $invoice->adjustments()->delete();
         $this->syncAdjustments($invoice, $request, $money);
         $this->recalculate($invoice, $calculator);
@@ -223,8 +238,10 @@ class MonthlyInvoiceController extends Controller
         ]);
     }
 
-    private function syncGrid(MonthlyInvoice $invoice, Request $request, Client $client, MoneyFormatter $money): void
+    private function syncGrid(MonthlyInvoice $invoice, Request $request, Client $client, MoneyFormatter $money): int
     {
+        $createdEntries = 0;
+
         foreach ($request->input('grid', []) as $day => $columns) {
             foreach ($columns as $categoryId => $amount) {
                 $cents = $money->parse($amount);
@@ -242,8 +259,11 @@ class MonthlyInvoiceController extends Controller
                     'amount_cents' => $cents,
                     'source_type' => 'manual_monthly_grid',
                 ]);
+                $createdEntries++;
             }
         }
+
+        return $createdEntries;
     }
 
     private function syncAdjustments(MonthlyInvoice $invoice, Request $request, MoneyFormatter $money): void

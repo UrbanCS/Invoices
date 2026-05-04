@@ -79,7 +79,7 @@
                         <td class="border p-2 font-bold">{{ $day }}</td>
                         @foreach($selectedClient?->activeCategories ?? [] as $category)
                             @php($entry = $entries->first(fn ($e) => $e->service_day == $day && $e->client_category_id == $category->id))
-                            <td class="border p-1"><input class="w-full border-0 text-right" name="grid[{{ $day }}][{{ $category->id }}]" value="{{ old("grid.$day.$category->id", $entry ? number_format($entry->amount_cents / 100, 2) : '') }}"></td>
+                            <td class="border p-1"><input class="w-full border-0 text-right" inputmode="decimal" placeholder="0,00" name="grid[{{ $day }}][{{ $category->id }}]" value="{{ old("grid.$day.$category->id", $entry ? number_format($entry->amount_cents / 100, 2) : '') }}"></td>
                         @endforeach
                     </tr>
                 @endfor
