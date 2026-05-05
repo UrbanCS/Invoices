@@ -22,6 +22,7 @@ class InvoicePdfService
         ])->setPaper('letter', $orientation);
 
         $path = 'invoices/'.$invoice->invoice_year.'/'.$invoice->invoice_number.'.pdf';
+        Storage::disk('public')->makeDirectory('invoices/'.$invoice->invoice_year);
         Storage::disk('public')->put($path, $pdf->output());
 
         $invoice->update(['pdf_path' => $path]);
