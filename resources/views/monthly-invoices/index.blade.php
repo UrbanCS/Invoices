@@ -38,15 +38,16 @@
     </div>
     <div>
         <label class="label" for="status">Statut</label>
-        <select id="status" class="mt-1 w-full" name="status">
+        <select id="status" class="mt-1 w-full" name="status" onchange="this.form.submit()">
             <option value="">Tous les statuts</option>
             @foreach($statuses as $value => $label)
                 <option value="{{ $value }}" @selected(request('status') === $value)>{{ $label }}</option>
             @endforeach
         </select>
     </div>
-    <div class="flex items-end">
-        <button class="btn btn-secondary w-full">Filtrer</button>
+    <div class="flex items-end gap-2">
+        <button class="btn btn-secondary">Filtrer</button>
+        <a class="btn btn-secondary" href="{{ route('monthly-invoices.index') }}">Réinitialiser</a>
     </div>
 </form>
 

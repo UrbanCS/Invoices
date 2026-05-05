@@ -24,10 +24,14 @@ class MonthlyInvoiceController extends Controller
 {
     public function index(): View
     {
+        $status = in_array(request('status'), ['draft', 'approved', 'sent', 'paid', 'cancelled'], true)
+            ? request('status')
+            : null;
+
         $query = MonthlyInvoice::with('client')
             ->when(request('client_id'), fn ($q) => $q->where('client_id', request('client_id')))
             ->when(request('client_name'), fn ($q) => $q->whereHas('client', fn ($clientQuery) => $clientQuery->where('name', 'like', '%'.request('client_name').'%')))
-            ->when(request('status'), fn ($q) => $q->where('status', request('status')))
+            ->when($status, fn ($q) => $q->where('status', $status))
             ->when(request('invoice_number'), fn ($q) => $q->where('invoice_number', 'like', '%'.request('invoice_number').'%'))
             ->when(request('year'), fn ($q) => $q->where('invoice_year', request('year')));
 
