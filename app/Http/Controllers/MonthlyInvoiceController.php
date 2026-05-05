@@ -16,9 +16,11 @@ use App\Services\MoneyFormatter;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
+use Throwable;
 
 class MonthlyInvoiceController extends Controller
 {
@@ -168,9 +170,21 @@ class MonthlyInvoiceController extends Controller
     public function generatePdf(MonthlyInvoice $invoice, InvoicePdfService $pdf, AuditLogService $audit): RedirectResponse
     {
         $this->authorizeInvoice($invoice, true);
-        $pdf->generate($invoice);
-        $audit->record('monthly_invoice.pdf_generated', $invoice);
-        return back()->with('status', 'PDF généré.');
+
+        try {
+            $pdf->generate($invoice);
+            $audit->record('monthly_invoice.pdf_generated', $invoice);
+
+            return back()->with('status', 'PDF généré.');
+        } catch (Throwable $exception) {
+            Log::error('Erreur de génération PDF', [
+                'invoice_id' => $invoice->id,
+                'invoice_number' => $invoice->invoice_number,
+                'message' => $exception->getMessage(),
+            ]);
+
+            return back()->withErrors('PDF non généré. Vérifie les permissions du dossier storage ou le journal Laravel.');
+        }
     }
 
     public function download(MonthlyInvoice $invoice)
