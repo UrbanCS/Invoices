@@ -19,9 +19,16 @@
         .totals { margin-left: auto; margin-top: 14px; width: 42%; }
         .grand td { color: #0f3f2f; font-size: 13px; font-weight: bold; }
         .footer { border-top: 2px solid #0f3f2f; font-weight: bold; margin-top: 18px; padding-top: 9px; text-align: center; }
+        body.style-hotel .header { border-bottom-color: #1d6f50; }
+        body.style-hotel th { background: #dff2ea; color: #0b4b35; }
+        body.style-hotel .brand, body.style-hotel .grand td { color: #0b4b35; }
+        body.style-compact { font-size: 9px; }
+        body.style-compact .brand { font-size: 18px; }
+        body.style-compact th, body.style-compact td { padding: 4px; }
+        body.style-compact .invoice-table td { height: 14px; }
     </style>
 </head>
-<body>
+<body class="style-{{ $invoice->client?->invoice_style ?? 'standard' }}">
 @php
     $client = $invoice->client;
     $invoiceLanguage = $client?->default_language ?? 'fr';

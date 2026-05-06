@@ -9,7 +9,7 @@ class Client extends Model
 {
     protected $fillable = [
         'name', 'legal_name', 'billing_address', 'city', 'province', 'postal_code', 'phone',
-        'email', 'logo_path', 'tax_profile', 'default_language', 'notes', 'is_active',
+        'email', 'logo_path', 'tax_profile', 'default_language', 'invoice_style', 'notes', 'is_active',
     ];
 
     protected function casts(): array

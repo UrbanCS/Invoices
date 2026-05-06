@@ -31,6 +31,15 @@
         </select>
     </div>
     <div>
+        <label class="label">Style de facture PDF</label>
+        <select class="mt-1 w-full" name="invoice_style">
+            <option value="standard" @selected(old('invoice_style', $client->invoice_style ?? 'standard') === 'standard')>Standard Nettoyeur Villeneuve</option>
+            <option value="hotel" @selected(old('invoice_style', $client->invoice_style ?? 'standard') === 'hotel')>Hôtel / client</option>
+            <option value="compact" @selected(old('invoice_style', $client->invoice_style ?? 'standard') === 'compact')>Compact entreprise</option>
+        </select>
+        <p class="mt-1 text-sm text-stone-600">Ce choix adapte la présentation du PDF pour ce client.</p>
+    </div>
+    <div>
         <span class="label">Logo du client</span>
         <label class="btn btn-secondary mt-1 w-full cursor-pointer">
             Choisir un fichier

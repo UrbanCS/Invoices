@@ -109,6 +109,7 @@ class ClientController extends Controller
             'email' => ['nullable', 'email', 'max:255'],
             'tax_profile' => ['required', 'in:qc_tps_tvq,on_hst,custom'],
             'default_language' => ['required', 'in:fr,en'],
+            'invoice_style' => ['required', 'in:standard,hotel,compact'],
             'notes' => ['nullable', 'string'],
             'is_active' => ['nullable', 'boolean'],
             'logo' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:4096'],

@@ -53,6 +53,44 @@
         <div class="md:col-span-4"><label class="label">Notes / crédit</label><input class="mt-1 w-full" name="notes" value="{{ old('notes', $invoice->notes) }}"></div>
     </section>
 
+    <section class="panel p-6">
+        <div class="flex flex-wrap items-end justify-between gap-4">
+            <div>
+                <h2 class="text-xl font-bold text-villeneuve-forest">Calcul item × quantité</h2>
+                <p class="mt-1 text-sm text-stone-600">
+                    Choisis un jour, un item, une quantité et un prix unitaire. Le total sera ajouté automatiquement dans la grille mensuelle.
+                </p>
+            </div>
+            <button type="button" class="btn btn-secondary" data-item-add>Ajouter à la grille</button>
+        </div>
+        <div class="mt-4 grid gap-3 md:grid-cols-5" data-item-calculator>
+            <div>
+                <label class="label">Jour</label>
+                <input class="mt-1 w-full" type="number" min="1" max="31" value="1" data-item-day>
+            </div>
+            <div>
+                <label class="label">Item</label>
+                <select class="mt-1 w-full" data-item-category>
+                    @foreach($selectedClient?->activeCategories ?? [] as $category)
+                        <option value="{{ $category->id }}">{{ $category->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div>
+                <label class="label">Quantité</label>
+                <input class="mt-1 w-full text-right" type="number" min="0" step="0.01" value="1" data-item-quantity>
+            </div>
+            <div>
+                <label class="label">Prix unitaire</label>
+                <input class="mt-1 w-full text-right" inputmode="decimal" placeholder="0,00" data-item-unit-price>
+            </div>
+            <div>
+                <label class="label">Total calculé</label>
+                <input class="mt-1 w-full text-right font-bold text-villeneuve-forest" readonly value="0,00" data-item-total>
+            </div>
+        </div>
+    </section>
+
     <section class="panel overflow-x-auto p-6">
         <h2 class="text-xl font-bold text-villeneuve-forest">Grille mensuelle</h2>
         @if($clients->isEmpty())
@@ -79,7 +117,7 @@
                         <td class="border p-2 font-bold">{{ $day }}</td>
                         @foreach($selectedClient?->activeCategories ?? [] as $category)
                             @php($entry = $entries->first(fn ($e) => $e->service_day == $day && $e->client_category_id == $category->id))
-                            <td class="border p-1"><input class="w-full border-0 text-right" inputmode="decimal" placeholder="0,00" name="grid[{{ $day }}][{{ $category->id }}]" value="{{ old("grid.$day.$category->id", $entry ? number_format($entry->amount_cents / 100, 2) : '') }}"></td>
+                            <td class="border p-1"><input class="w-full border-0 text-right" inputmode="decimal" placeholder="0,00" name="grid[{{ $day }}][{{ $category->id }}]" data-grid-day="{{ $day }}" data-grid-category="{{ $category->id }}" value="{{ old("grid.$day.$category->id", $entry ? number_format($entry->amount_cents / 100, 2) : '') }}"></td>
                         @endforeach
                     </tr>
                 @endfor
@@ -111,4 +149,62 @@
 
     <button class="btn btn-primary" @disabled($clients->isEmpty() || ! $hasCategories)>Sauvegarder brouillon</button>
 </form>
+
+<script>
+    (() => {
+        const calculator = document.querySelector('[data-item-calculator]');
+        if (! calculator) return;
+
+        const dayInput = calculator.querySelector('[data-item-day]');
+        const categoryInput = calculator.querySelector('[data-item-category]');
+        const quantityInput = calculator.querySelector('[data-item-quantity]');
+        const unitPriceInput = calculator.querySelector('[data-item-unit-price]');
+        const totalInput = calculator.querySelector('[data-item-total]');
+        const addButton = document.querySelector('[data-item-add]');
+
+        const parseMoney = (value) => {
+            const normalized = String(value || '')
+                .replace(/\s/g, '')
+                .replace('$', '')
+                .replace(',', '.');
+
+            const amount = Number.parseFloat(normalized);
+
+            return Number.isFinite(amount) ? amount : 0;
+        };
+
+        const formatMoney = (amount) => amount.toFixed(2).replace('.', ',');
+
+        const currentTotal = () => {
+            const quantity = Number.parseFloat(quantityInput.value || '0') || 0;
+            const unitPrice = parseMoney(unitPriceInput.value);
+
+            return quantity * unitPrice;
+        };
+
+        const updateTotal = () => {
+            totalInput.value = formatMoney(currentTotal());
+        };
+
+        const addToGrid = () => {
+            const day = dayInput.value;
+            const category = categoryInput.value;
+            const total = currentTotal();
+            const target = document.querySelector(`[data-grid-day="${day}"][data-grid-category="${category}"]`);
+
+            if (! target || total <= 0) return;
+
+            const existing = parseMoney(target.value);
+            target.value = formatMoney(existing + total);
+            unitPriceInput.value = '';
+            quantityInput.value = '1';
+            updateTotal();
+            target.focus();
+        };
+
+        [quantityInput, unitPriceInput].forEach((input) => input.addEventListener('input', updateTotal));
+        addButton?.addEventListener('click', addToGrid);
+        updateTotal();
+    })();
+</script>
 @endsection
