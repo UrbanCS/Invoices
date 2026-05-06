@@ -12,13 +12,24 @@ class PortalInvoiceController extends Controller
 {
     public function index(): View
     {
-        $invoices = MonthlyInvoice::where('client_id', Auth::user()->client_id)
-            ->when(request('status'), fn ($q) => $q->where('status', request('status')))
-            ->when(request('year'), fn ($q) => $q->where('invoice_year', request('year')))
-            ->latest('invoice_date')
-            ->paginate(20);
+        $status = in_array(request('status'), ['approved', 'sent', 'paid', 'cancelled'], true)
+            ? request('status')
+            : null;
+        $year = filled(request('year')) ? (int) request('year') : null;
 
-        return view('portal.invoices', ['invoices' => $invoices, 'money' => app(MoneyFormatter::class)]);
+        $invoices = MonthlyInvoice::where('client_id', Auth::user()->client_id)
+            ->when($status, fn ($q) => $q->where('status', $status))
+            ->when($year, fn ($q) => $q->where('invoice_year', $year))
+            ->latest('invoice_date')
+            ->paginate(20)
+            ->withQueryString();
+
+        return view('portal.invoices', [
+            'invoices' => $invoices,
+            'money' => app(MoneyFormatter::class),
+            'selectedStatus' => $status,
+            'selectedYear' => $year,
+        ]);
     }
 
     public function show(MonthlyInvoice $invoice, MoneyFormatter $money): View
