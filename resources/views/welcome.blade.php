@@ -8,6 +8,7 @@
         <p class="mt-5 max-w-2xl text-lg text-stone-700">{{ __('app.landing_copy') }}</p>
         <div class="mt-8 flex gap-3">
             <a class="btn btn-primary" href="{{ route('login') }}">{{ __('app.sign_in') }}</a>
+            <a class="btn btn-secondary" href="{{ route('register') }}">Créer un compte</a>
         </div>
     </div>
     <div class="panel p-8">

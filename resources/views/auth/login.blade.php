@@ -10,5 +10,9 @@
         <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="remember"> {{ __('app.remember_me') }}</label>
         <button class="btn btn-primary w-full">{{ __('app.sign_in') }}</button>
     </form>
+    <div class="mt-5 border-t border-villeneuve-line pt-5 text-sm text-stone-700">
+        Vous êtes un client avec un courriel déjà associé?
+        <a class="font-bold text-villeneuve-forest underline" href="{{ route('register') }}">Créer un compte client</a>
+    </div>
 </div>
 @endsection

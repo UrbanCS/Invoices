@@ -45,6 +45,7 @@
                     @endif
                     <form method="post" action="{{ route('logout') }}">@csrf <button class="btn btn-secondary">{{ __('app.logout') }}</button></form>
                 @else
+                    <a class="btn btn-secondary" href="{{ route('register') }}">Créer un compte</a>
                     <a class="btn btn-primary" href="{{ route('login') }}">{{ __('app.sign_in') }}</a>
                 @endauth
             </nav>
