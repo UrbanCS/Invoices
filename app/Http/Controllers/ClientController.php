@@ -32,9 +32,10 @@ class ClientController extends Controller
     {
         $client = Client::create($this->validated($request));
         $this->syncNewCategories($client, $request);
+        $portalStatus = $this->syncPortalUser($client, $request);
         $audit->record('client.created', $client);
 
-        return redirect()->route('clients.show', $client)->with('status', 'Client créé.');
+        return redirect()->route('clients.show', $client)->with('status', trim('Client créé. '.$portalStatus));
     }
 
     public function show(Client $client): View
@@ -52,9 +53,10 @@ class ClientController extends Controller
         $before = $client->toArray();
         $client->update($this->validated($request));
         $this->syncNewCategories($client, $request);
+        $portalStatus = $this->syncPortalUser($client, $request);
         $audit->record('client.updated', $client, $before);
 
-        return redirect()->route('clients.show', $client)->with('status', 'Client mis à jour.');
+        return redirect()->route('clients.show', $client)->with('status', trim('Client mis à jour. '.$portalStatus));
     }
 
     public function destroy(Client $client): RedirectResponse
@@ -113,15 +115,49 @@ class ClientController extends Controller
             'notes' => ['nullable', 'string'],
             'is_active' => ['nullable', 'boolean'],
             'logo' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
+            'create_portal_user' => ['nullable', 'boolean'],
+            'portal_password' => ['nullable', 'string', 'min:8'],
         ]) + ['is_active' => $request->boolean('is_active', true)];
 
         if ($request->hasFile('logo')) {
             $data['logo_path'] = $request->file('logo')->store('client-logos', 'public');
         }
 
-        unset($data['logo']);
+        unset($data['logo'], $data['create_portal_user'], $data['portal_password']);
 
         return $data;
+    }
+
+    private function syncPortalUser(Client $client, Request $request): string
+    {
+        if (! $request->boolean('create_portal_user') || blank($client->email)) {
+            return '';
+        }
+
+        $email = mb_strtolower(trim($client->email));
+        $user = User::where('email', $email)->first();
+
+        if ($user && ! $user->isClientUser()) {
+            return 'Aucun accès portail créé: ce courriel appartient déjà à un utilisateur interne.';
+        }
+
+        $password = $request->input('portal_password') ?: 'password';
+        $payload = [
+            'name' => $client->name,
+            'role' => 'client',
+            'client_id' => $client->id,
+            'is_active' => true,
+        ];
+
+        if (! $user || filled($request->input('portal_password'))) {
+            $payload['password'] = $password;
+        }
+
+        User::updateOrCreate(['email' => $email], $payload);
+
+        return $request->filled('portal_password')
+            ? 'Accès portail client créé/mis à jour.'
+            : 'Accès portail client créé/mis à jour. Mot de passe temporaire: password';
     }
 
     private function syncNewCategories(Client $client, Request $request): void

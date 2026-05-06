@@ -16,6 +16,27 @@
     <div><label class="label">Province</label><input class="mt-1 w-full" name="province" value="{{ old('province', $client->province) }}"></div>
     <div><label class="label">Code postal</label><input class="mt-1 w-full" name="postal_code" value="{{ old('postal_code', $client->postal_code) }}"></div>
     <div><label class="label">Courriel</label><input class="mt-1 w-full" name="email" value="{{ old('email', $client->email) }}"></div>
+    <div class="rounded border border-villeneuve-line bg-villeneuve-mint/50 p-4">
+        <label class="flex items-center gap-2 font-bold text-villeneuve-forest">
+            <input
+                type="checkbox"
+                name="create_portal_user"
+                value="1"
+                @checked(old('create_portal_user', filled($client->email)))
+            >
+            Créer / mettre à jour l’accès portail client
+        </label>
+        <p class="mt-2 text-sm text-stone-600">
+            Le client pourra se connecter avec le courriel ci-dessus et verra seulement ses propres factures.
+        </p>
+        <label class="label mt-3">Mot de passe temporaire</label>
+        <input
+            class="mt-1 w-full"
+            name="portal_password"
+            type="text"
+            placeholder="{{ $client->exists ? 'Laisser vide pour conserver le mot de passe' : 'Laisser vide pour utiliser password' }}"
+        >
+    </div>
     <div>
         <label class="label">Profil de taxes</label>
         <select class="mt-1 w-full" name="tax_profile">
