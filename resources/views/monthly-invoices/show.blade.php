@@ -30,19 +30,23 @@
 
 <div class="mt-6 grid gap-6 lg:grid-cols-[1fr_340px]">
     <section class="panel overflow-x-auto p-6">
-        <table class="table w-full">
+        <table class="w-full table-fixed border-collapse text-sm">
             <tr>
-                <th>Jour</th>
+                <th class="w-20 border border-villeneuve-line bg-villeneuve-mint px-3 py-2 text-left text-xs font-bold uppercase text-villeneuve-forest">Jour</th>
                 @foreach($invoice->category_snapshot ?? [] as $category)
-                    <th class="text-right">{{ $singleCategory ? 'Montant' : $category['name'] }}</th>
+                    <th class="border border-villeneuve-line bg-villeneuve-mint px-3 py-2 text-center text-xs font-bold uppercase text-villeneuve-forest">
+                        {{ $singleCategory ? 'Montant' : $category['name'] }}
+                    </th>
                 @endforeach
             </tr>
             @for($day = 1; $day <= 31; $day++)
                 <tr>
-                    <td class="font-bold">{{ $day }}</td>
+                    <td class="border border-villeneuve-line px-3 py-2 font-bold">{{ $day }}</td>
                     @foreach($invoice->category_snapshot ?? [] as $category)
                         @php($sum = $invoice->entries->where('service_day', $day)->where('client_category_id', $category['id'])->sum('amount_cents'))
-                        <td class="text-right">{{ $sum ? $money->format($sum, $invoiceLanguage) : '' }}</td>
+                        <td class="border border-villeneuve-line px-3 py-2 text-right tabular-nums">
+                            {{ $sum ? $money->format($sum, $invoiceLanguage) : '' }}
+                        </td>
                     @endforeach
                 </tr>
             @endfor
