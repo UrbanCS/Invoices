@@ -117,7 +117,21 @@
                         <td class="border p-2 font-bold">{{ $day }}</td>
                         @foreach($selectedClient?->activeCategories ?? [] as $category)
                             @php($entry = $entries->first(fn ($e) => $e->service_day == $day && $e->client_category_id == $category->id))
-                            <td class="border p-1"><input class="w-full border-0 text-right" inputmode="decimal" placeholder="0,00" name="grid[{{ $day }}][{{ $category->id }}]" data-grid-day="{{ $day }}" data-grid-category="{{ $category->id }}" value="{{ old("grid.$day.$category->id", $entry ? number_format($entry->amount_cents / 100, 2) : '') }}"></td>
+                            <td class="border p-1 align-top">
+                                <input class="w-full border-0 text-right" inputmode="decimal" placeholder="0,00" name="grid[{{ $day }}][{{ $category->id }}]" data-grid-day="{{ $day }}" data-grid-category="{{ $category->id }}" value="{{ old("grid.$day.$category->id", $entry ? number_format($entry->amount_cents / 100, 2) : '') }}">
+                                <div class="mt-1 space-y-1 text-xs text-stone-600" data-detail-list data-detail-day="{{ $day }}" data-detail-category="{{ $category->id }}">
+                                    @foreach($entry?->item_details ?? [] as $detailIndex => $detail)
+                                        @php($unit = number_format(($detail['unit_price_cents'] ?? 0) / 100, 2, ',', ' '))
+                                        @php($total = number_format(($detail['total_cents'] ?? 0) / 100, 2, ',', ' '))
+                                        <div class="rounded bg-villeneuve-mint px-2 py-1">
+                                            Qté {{ $detail['quantity'] ?? '' }} × Prix unit. {{ $unit }} $ = {{ $total }} $
+                                        </div>
+                                        <input type="hidden" name="details[{{ $day }}][{{ $category->id }}][{{ $detailIndex }}][label]" value="{{ $detail['label'] ?? $category->name }}">
+                                        <input type="hidden" name="details[{{ $day }}][{{ $category->id }}][{{ $detailIndex }}][quantity]" value="{{ $detail['quantity'] ?? '' }}">
+                                        <input type="hidden" name="details[{{ $day }}][{{ $category->id }}][{{ $detailIndex }}][unit_price]" value="{{ number_format(($detail['unit_price_cents'] ?? 0) / 100, 2, ',', ' ') }}">
+                                    @endforeach
+                                </div>
+                            </td>
                         @endforeach
                     </tr>
                 @endfor
@@ -161,6 +175,7 @@
         const unitPriceInput = calculator.querySelector('[data-item-unit-price]');
         const totalInput = calculator.querySelector('[data-item-total]');
         const addButton = document.querySelector('[data-item-add]');
+        let detailIndex = Date.now();
 
         const parseMoney = (value) => {
             const normalized = String(value || '')
@@ -191,11 +206,34 @@
             const category = categoryInput.value;
             const total = currentTotal();
             const target = document.querySelector(`[data-grid-day="${day}"][data-grid-category="${category}"]`);
+            const detailList = document.querySelector(`[data-detail-day="${day}"][data-detail-category="${category}"]`);
+            const selectedLabel = categoryInput.options[categoryInput.selectedIndex]?.text || 'Item';
 
-            if (! target || total <= 0) return;
+            if (! target || ! detailList || total <= 0) return;
 
             const existing = parseMoney(target.value);
             target.value = formatMoney(existing + total);
+            detailIndex++;
+
+            const row = document.createElement('div');
+            row.className = 'rounded bg-villeneuve-mint px-2 py-1';
+            row.textContent = `Qté ${quantityInput.value || 0} × Prix unit. ${formatMoney(parseMoney(unitPriceInput.value))} $ = ${formatMoney(total)} $`;
+            detailList.appendChild(row);
+
+            const fields = {
+                label: selectedLabel,
+                quantity: quantityInput.value || '0',
+                unit_price: formatMoney(parseMoney(unitPriceInput.value)),
+            };
+
+            Object.entries(fields).forEach(([name, value]) => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = `details[${day}][${category}][${detailIndex}][${name}]`;
+                input.value = value;
+                detailList.appendChild(input);
+            });
+
             unitPriceInput.value = '';
             quantityInput.value = '1';
             updateTotal();

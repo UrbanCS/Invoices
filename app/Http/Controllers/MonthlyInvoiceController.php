@@ -270,11 +270,18 @@ class MonthlyInvoiceController extends Controller
                 if (! $category) {
                     continue;
                 }
+
+                $itemDetails = $this->itemDetails(
+                    $request->input("details.$day.$categoryId", []),
+                    $money
+                );
+
                 $invoice->entries()->create([
                     'service_day' => (int) $day,
                     'client_category_id' => $category->id,
                     'category_name_snapshot' => $category->name,
                     'amount_cents' => $cents,
+                    'item_details' => $itemDetails ?: null,
                     'source_type' => 'manual_monthly_grid',
                 ]);
                 $createdEntries++;
@@ -282,6 +289,30 @@ class MonthlyInvoiceController extends Controller
         }
 
         return $createdEntries;
+    }
+
+    private function itemDetails(array $rows, MoneyFormatter $money): array
+    {
+        return collect($rows)
+            ->map(function (array $row) use ($money) {
+                $quantity = (float) str_replace(',', '.', (string) ($row['quantity'] ?? 0));
+                $unitPriceCents = $money->parse($row['unit_price'] ?? null);
+                $totalCents = (int) round($quantity * $unitPriceCents);
+
+                if ($quantity <= 0 || $unitPriceCents <= 0 || $totalCents <= 0) {
+                    return null;
+                }
+
+                return [
+                    'label' => trim((string) ($row['label'] ?? '')),
+                    'quantity' => rtrim(rtrim(number_format($quantity, 2, '.', ''), '0'), '.'),
+                    'unit_price_cents' => $unitPriceCents,
+                    'total_cents' => $totalCents,
+                ];
+            })
+            ->filter()
+            ->values()
+            ->all();
     }
 
     private function syncAdjustments(MonthlyInvoice $invoice, Request $request, MoneyFormatter $money): void

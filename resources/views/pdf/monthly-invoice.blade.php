@@ -109,8 +109,24 @@
                     @php
                         $categoryId = $category['id'] ?? 'none';
                         $sum = $entryTotals->get($day.'-'.$categoryId, 0);
+                        $cellEntries = $invoice->entries
+                            ->where('service_day', $day)
+                            ->where('client_category_id', $categoryId === 'none' ? null : $categoryId);
                     @endphp
-                    <td class="right">{{ $sum ? $money->format($sum, $invoiceLanguage) : '' }}</td>
+                    <td class="right">
+                        @if($sum)
+                            <strong>{{ $money->format($sum, $invoiceLanguage) }}</strong>
+                        @endif
+                        @foreach($cellEntries as $entry)
+                            @foreach($entry->item_details ?? [] as $detail)
+                                <div class="muted" style="font-size: 8px; margin-top: 2px;">
+                                    Qté {{ $detail['quantity'] ?? '' }}
+                                    × Prix unit. {{ $money->format($detail['unit_price_cents'] ?? 0, $invoiceLanguage) }}
+                                    = {{ $money->format($detail['total_cents'] ?? 0, $invoiceLanguage) }}
+                                </div>
+                            @endforeach
+                        @endforeach
+                    </td>
                 @endforeach
             </tr>
         @endfor

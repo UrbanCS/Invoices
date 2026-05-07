@@ -43,9 +43,21 @@
                 <tr>
                     <td class="border border-villeneuve-line px-3 py-2 font-bold">{{ $day }}</td>
                     @foreach($invoice->category_snapshot ?? [] as $category)
-                        @php($sum = $invoice->entries->where('service_day', $day)->where('client_category_id', $category['id'])->sum('amount_cents'))
+                        @php($cellEntries = $invoice->entries->where('service_day', $day)->where('client_category_id', $category['id']))
+                        @php($sum = $cellEntries->sum('amount_cents'))
                         <td class="border border-villeneuve-line px-3 py-2 text-right tabular-nums">
-                            {{ $sum ? $money->format($sum, $invoiceLanguage) : '' }}
+                            @if($sum)
+                                <div class="font-semibold">{{ $money->format($sum, $invoiceLanguage) }}</div>
+                            @endif
+                            @foreach($cellEntries as $entry)
+                                @foreach($entry->item_details ?? [] as $detail)
+                                    <div class="mt-1 text-xs leading-snug text-stone-600">
+                                        Qté {{ $detail['quantity'] ?? '' }}
+                                        × Prix unit. {{ $money->format($detail['unit_price_cents'] ?? 0, $invoiceLanguage) }}
+                                        = {{ $money->format($detail['total_cents'] ?? 0, $invoiceLanguage) }}
+                                    </div>
+                                @endforeach
+                            @endforeach
                         </td>
                     @endforeach
                 </tr>
