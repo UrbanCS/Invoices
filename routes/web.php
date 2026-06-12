@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\AccountStatementController;
 use App\Http\Controllers\BusinessSettingController;
 use App\Http\Controllers\ClientCategoryController;
 use App\Http\Controllers\ClientController;
@@ -9,6 +10,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\MonthlyInvoiceController;
 use App\Http\Controllers\PortalInvoiceController;
+use App\Http\Controllers\PortalOrderController;
 use App\Http\Controllers\PublicController;
 use App\Http\Controllers\ReportController;
 use Illuminate\Support\Facades\Route;
@@ -43,6 +45,9 @@ Route::middleware(['auth', 'role:super_admin,employee'])->group(function () {
     Route::get('/reports/revenue', [ReportController::class, 'revenue'])->name('reports.revenue');
     Route::get('/reports/category-totals', [ReportController::class, 'categoryTotals'])->name('reports.category-totals');
     Route::get('/reports/export/csv', [ReportController::class, 'exportCsv'])->name('reports.export.csv');
+
+    Route::get('/account-statements', [AccountStatementController::class, 'index'])->name('account-statements.index');
+    Route::post('/account-statements/orders/{order}/adjustment', [AccountStatementController::class, 'adjustment'])->name('account-statements.adjustment');
 });
 
 Route::middleware(['auth', 'role:super_admin'])->group(function () {
@@ -57,4 +62,8 @@ Route::middleware(['auth', 'role:client'])->group(function () {
     Route::get('/portal/invoices', [PortalInvoiceController::class, 'index'])->name('portal.invoices.index');
     Route::get('/portal/invoices/{invoice}', [PortalInvoiceController::class, 'show'])->name('portal.invoices.show');
     Route::get('/portal/invoices/{invoice}/download', [PortalInvoiceController::class, 'download'])->name('portal.invoices.download');
+    Route::get('/portal/orders', [PortalOrderController::class, 'index'])->name('portal.orders.index');
+    Route::get('/portal/orders/create', [PortalOrderController::class, 'create'])->name('portal.orders.create');
+    Route::post('/portal/orders', [PortalOrderController::class, 'store'])->name('portal.orders.store');
+    Route::get('/portal/orders/{order}', [PortalOrderController::class, 'show'])->name('portal.orders.show');
 });

@@ -70,22 +70,34 @@
     <div class="md:col-span-2">
         <label class="label">Catégories de facturation</label>
         <p class="mt-1 text-sm text-stone-600">
-            Ajoute les catégories qui apparaîtront dans les registres et les factures de ce client. Pour une facture simple, utilise Montant.
+            Ajoute les items/catégories et leur prix fixe. Les clients pourront choisir les items et quantités, mais ne pourront pas modifier les prix.
         </p>
-        <div class="mt-3 grid gap-3 md:grid-cols-4">
-            @for($i = 0; $i < 4; $i++)
-                <input
-                    class="w-full"
-                    name="category_names[]"
-                    value="{{ old("category_names.$i", $categoryNames[$i] ?? '') }}"
-                    placeholder="{{ $i === 0 ? 'Montant' : 'Catégorie '.($i + 1) }}"
-                >
+        <div class="mt-3 grid gap-3">
+            @php($categoryRowCount = max(6, ($categoryRows ?? collect())->count() + 2))
+            @for($i = 0; $i < $categoryRowCount; $i++)
+                <div class="grid gap-3 md:grid-cols-2">
+                    <input
+                        class="w-full"
+                        name="category_names[]"
+                        value="{{ old("category_names.$i", $categoryRows[$i]['name'] ?? '') }}"
+                        placeholder="Item / catégorie {{ $i + 1 }}"
+                    >
+                    <input
+                        class="w-full text-right"
+                        name="category_prices[]"
+                        inputmode="decimal"
+                        value="{{ old("category_prices.$i", $categoryRows[$i]['price'] ?? '') }}"
+                        placeholder="Prix fixe"
+                    >
+                </div>
             @endfor
         </div>
-        @if($client->exists && $client->categories->isNotEmpty())
+        @if($client->exists && $client->categories->where('is_active', true)->isNotEmpty())
             <div class="mt-3 flex flex-wrap gap-2 text-sm">
-                @foreach($client->categories as $category)
-                    <span class="rounded border border-villeneuve-line bg-villeneuve-mint px-3 py-1 font-semibold text-villeneuve-forest">{{ $category->name }}</span>
+                @foreach($client->categories->where('is_active', true) as $category)
+                    <span class="rounded border border-villeneuve-line bg-villeneuve-mint px-3 py-1 font-semibold text-villeneuve-forest">
+                        {{ $category->name }} · {{ number_format($category->default_price_cents / 100, 2, ',', ' ') }} $
+                    </span>
                 @endforeach
             </div>
         @endif

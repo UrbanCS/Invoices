@@ -18,9 +18,15 @@
     </section>
     <section class="panel p-6">
         <h2 class="font-bold text-villeneuve-forest">Catégories</h2>
-        @foreach($client->categories as $category)
-            <p class="mt-2">{{ $category->sort_order }}. {{ $category->name }} {{ $category->is_taxable ? '' : '(non taxable)' }}</p>
-        @endforeach
+        @forelse($client->categories->where('is_active', true) as $category)
+            <p class="mt-2">
+                {{ $category->sort_order }}. {{ $category->name }}
+                <span class="text-stone-500">- {{ number_format($category->default_price_cents / 100, 2, ',', ' ') }} $</span>
+                {{ $category->is_taxable ? '' : '(non taxable)' }}
+            </p>
+        @empty
+            <p class="mt-2 text-stone-500">Aucune catégorie active.</p>
+        @endforelse
     </section>
 </div>
 @endsection

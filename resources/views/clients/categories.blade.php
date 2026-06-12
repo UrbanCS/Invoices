@@ -6,9 +6,9 @@
 <div class="mt-6 grid gap-6 lg:grid-cols-[1fr_360px]">
     <section class="panel overflow-x-auto">
         <table class="table w-full">
-            <tr><th>Nom</th><th>Ordre</th><th>Taxable</th><th>Active</th></tr>
-            @foreach($client->categories as $category)
-                <tr><td>{{ $category->name }}</td><td>{{ $category->sort_order }}</td><td>{{ $category->is_taxable ? 'Oui' : 'Non' }}</td><td>{{ $category->is_active ? 'Oui' : 'Non' }}</td></tr>
+            <tr><th>Nom</th><th>Prix fixe</th><th>Ordre</th><th>Taxable</th><th>Active</th></tr>
+            @foreach($client->categories->where('is_active', true) as $category)
+                <tr><td>{{ $category->name }}</td><td>{{ number_format($category->default_price_cents / 100, 2, ',', ' ') }} $</td><td>{{ $category->sort_order }}</td><td>{{ $category->is_taxable ? 'Oui' : 'Non' }}</td><td>{{ $category->is_active ? 'Oui' : 'Non' }}</td></tr>
             @endforeach
         </table>
     </section>
@@ -16,6 +16,7 @@
         @csrf
         <h2 class="font-bold text-villeneuve-forest">Ajouter une catégorie</h2>
         <div><label class="label">Nom</label><input class="mt-1 w-full" name="name" required></div>
+        <div><label class="label">Prix fixe</label><input class="mt-1 w-full text-right" name="default_price" inputmode="decimal" placeholder="0,00"></div>
         <div><label class="label">Ordre d’affichage</label><input class="mt-1 w-full" type="number" name="sort_order" value="0"></div>
         <label class="flex gap-2"><input type="checkbox" name="is_taxable" value="1" checked> Taxable</label>
         <label class="flex gap-2"><input type="checkbox" name="is_active" value="1" checked> Active</label>

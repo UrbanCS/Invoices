@@ -36,12 +36,14 @@
                         @endif
                         <a class="px-2 py-1 hover:text-villeneuve-green" href="{{ route('daily-records.index') }}">{{ __('app.daily_records') }}</a>
                         <a class="px-2 py-1 hover:text-villeneuve-green" href="{{ route('monthly-invoices.index') }}">{{ __('app.invoices') }}</a>
+                        <a class="px-2 py-1 hover:text-villeneuve-green" href="{{ route('account-statements.index') }}">États de compte</a>
                         <a class="px-2 py-1 hover:text-villeneuve-green" href="{{ route('reports.index') }}">{{ __('app.reports') }}</a>
                         @if(auth()->user()->isSuperAdmin())
                             <a class="px-2 py-1 hover:text-villeneuve-green" href="{{ route('settings.business.edit') }}">{{ __('app.settings') }}</a>
                         @endif
                     @else
                         <a class="px-2 py-1 hover:text-villeneuve-green" href="{{ route('portal.invoices.index') }}">{{ __('app.my_invoices') }}</a>
+                        <a class="px-2 py-1 hover:text-villeneuve-green" href="{{ route('portal.orders.index') }}">Mes commandes</a>
                     @endif
                     <form method="post" action="{{ route('logout') }}">@csrf <button class="btn btn-secondary">{{ __('app.logout') }}</button></form>
                 @else

@@ -11,6 +11,7 @@ use App\Models\Payment;
 use App\Models\UploadedDocument;
 use App\Models\User;
 use App\Services\AuditLogService;
+use App\Services\MoneyFormatter;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -25,7 +26,7 @@ class ClientController extends Controller
 
     public function create(): View
     {
-        return view('clients.form', ['client' => new Client(), 'categoryNames' => collect()]);
+        return view('clients.form', ['client' => new Client(), 'categoryRows' => collect()]);
     }
 
     public function store(Request $request, AuditLogService $audit): RedirectResponse
@@ -45,7 +46,15 @@ class ClientController extends Controller
 
     public function edit(Client $client): View
     {
-        return view('clients.form', ['client' => $client->load('categories'), 'categoryNames' => $client->categories->pluck('name')]);
+        $client->load('categories');
+
+        return view('clients.form', [
+            'client' => $client,
+            'categoryRows' => $client->categories->where('is_active', true)->values()->map(fn ($category) => [
+                'name' => $category->name,
+                'price' => number_format($category->default_price_cents / 100, 2, ',', ' '),
+            ]),
+        ]);
     }
 
     public function update(Request $request, Client $client, AuditLogService $audit): RedirectResponse
@@ -162,20 +171,35 @@ class ClientController extends Controller
 
     private function syncNewCategories(Client $client, Request $request): void
     {
+        $money = app(MoneyFormatter::class);
+        $prices = $request->input('category_prices', []);
         $names = collect($request->input('category_names', []))
-            ->map(fn ($name) => trim((string) $name))
-            ->filter()
-            ->unique(fn ($name) => mb_strtolower($name))
+            ->map(fn ($name, $index) => [
+                'name' => trim((string) $name),
+                'price_cents' => max(0, $money->parse($prices[$index] ?? null)),
+            ])
+            ->filter(fn ($row) => filled($row['name']))
+            ->unique(fn ($row) => mb_strtolower($row['name']))
             ->values();
 
-        if ($names->isEmpty() && ! $client->categories()->exists()) {
-            $names = collect(['Montant']);
-        }
+        $submittedNames = $names->pluck('name');
 
-        foreach ($names as $index => $name) {
-            $client->categories()->firstOrCreate(
-                ['name' => $name],
-                ['sort_order' => $index + 1, 'is_taxable' => true, 'is_active' => true]
+        $client->categories()
+            ->when(
+                $submittedNames->isNotEmpty(),
+                fn ($query) => $query->whereNotIn('name', $submittedNames),
+            )
+            ->update(['is_active' => false]);
+
+        foreach ($names as $index => $row) {
+            $client->categories()->updateOrCreate(
+                ['name' => $row['name']],
+                [
+                    'sort_order' => $index + 1,
+                    'is_taxable' => true,
+                    'default_price_cents' => $row['price_cents'],
+                    'is_active' => true,
+                ]
             );
         }
     }

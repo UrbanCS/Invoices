@@ -32,6 +32,16 @@ class Client extends Model
         return $this->hasMany(MonthlyInvoice::class);
     }
 
+    public function cleaningOrders(): HasMany
+    {
+        return $this->hasMany(CleaningOrder::class);
+    }
+
+    public function employeeNames(): HasMany
+    {
+        return $this->hasMany(ClientEmployeeName::class)->orderBy('name');
+    }
+
     public function dailyRecords(): HasMany
     {
         return $this->hasMany(DailyRecord::class);

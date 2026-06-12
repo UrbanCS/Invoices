@@ -7,11 +7,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ClientCategory extends Model
 {
-    protected $fillable = ['client_id', 'name', 'sort_order', 'is_taxable', 'is_active'];
+    protected $fillable = ['client_id', 'name', 'sort_order', 'is_taxable', 'default_price_cents', 'is_active'];
 
     protected function casts(): array
     {
-        return ['is_taxable' => 'boolean', 'is_active' => 'boolean'];
+        return ['is_taxable' => 'boolean', 'default_price_cents' => 'integer', 'is_active' => 'boolean'];
     }
 
     public function client(): BelongsTo
