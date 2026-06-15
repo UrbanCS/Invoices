@@ -1,28 +1,35 @@
 @extends('layouts.app')
 
 @section('content')
+@php
+    $editing = $order->exists;
+    $orderQuantities = $editing ? $order->items->pluck('quantity', 'client_category_id') : collect();
+@endphp
 <div class="flex flex-wrap items-center justify-between gap-4">
     <div>
         <p class="label">{{ $client->name }}</p>
-        <h1 class="text-3xl font-extrabold text-villeneuve-forest">Nouvelle commande de nettoyage</h1>
+        <h1 class="text-3xl font-extrabold text-villeneuve-forest">{{ $editing ? 'Corriger la commande' : 'Nouvelle commande de nettoyage' }}</h1>
     </div>
     <a class="btn btn-secondary" href="{{ route('portal.orders.index') }}">Mes commandes</a>
 </div>
 
-<form class="mt-6 space-y-6" method="post" action="{{ route('portal.orders.store') }}">
+<form class="mt-6 space-y-6" method="post" action="{{ $editing ? route('portal.orders.update', $order) : route('portal.orders.store') }}">
     @csrf
+    @if($editing)
+        @method('put')
+    @endif
 
-    <section class="panel grid gap-4 p-6 md:grid-cols-3">
+    <section class="panel grid gap-4 p-6 md:grid-cols-2">
         <div>
             <label class="label">Date du service</label>
-            <input class="mt-1 w-full" type="date" name="service_date" value="{{ old('service_date', now()->toDateString()) }}" required>
+            <input class="mt-1 w-full" type="date" name="service_date" value="{{ old('service_date', $order->service_date?->format('Y-m-d') ?? now()->toDateString()) }}" required>
         </div>
         <div>
             <label class="label">Nom de l’employé</label>
             <select class="mt-1 w-full" name="employee_name">
                 <option value="">Choisir un nom sauvegardé</option>
                 @foreach($client->employeeNames as $employeeName)
-                    <option value="{{ $employeeName->name }}" @selected(old('employee_name') === $employeeName->name)>{{ $employeeName->name }}</option>
+                    <option value="{{ $employeeName->name }}" @selected(old('employee_name', $order->employee_name) === $employeeName->name)>{{ $employeeName->name }}</option>
                 @endforeach
             </select>
         </div>
@@ -30,9 +37,13 @@
             <label class="label">Ajouter un nouveau nom</label>
             <input class="mt-1 w-full" name="new_employee_name" value="{{ old('new_employee_name') }}" placeholder="Ex. Julian, Marie, réception">
         </div>
-        <div class="md:col-span-3">
+        <div>
+            <label class="label">No de département</label>
+            <input class="mt-1 w-full" name="department_number" value="{{ old('department_number', $order->department_number) }}" placeholder="Ex. 2357, réception, chambre 478" required>
+        </div>
+        <div class="md:col-span-2">
             <label class="label">Notes</label>
-            <textarea class="mt-1 w-full" name="notes" rows="2" placeholder="Informations utiles pour Nettoyeur Villeneuve">{{ old('notes') }}</textarea>
+            <textarea class="mt-1 w-full" name="notes" rows="2" placeholder="Informations utiles pour Nettoyeur Villeneuve">{{ old('notes', $order->notes) }}</textarea>
         </div>
     </section>
 
@@ -60,7 +71,7 @@
                             min="0"
                             step="0.01"
                             name="quantities[{{ $category->id }}]"
-                            value="{{ old('quantities.'.$category->id) }}"
+                            value="{{ old('quantities.'.$category->id, $orderQuantities->get($category->id)) }}"
                             data-quantity
                         >
                     </td>
@@ -78,7 +89,7 @@
         </div>
     </section>
 
-    <button class="btn btn-primary" @disabled($client->activeCategories->isEmpty())>Envoyer la commande</button>
+    <button class="btn btn-primary" @disabled($client->activeCategories->isEmpty())>{{ $editing ? 'Sauvegarder les corrections' : 'Envoyer la commande' }}</button>
 </form>
 
 <script>

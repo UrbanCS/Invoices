@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\AccountStatementController;
+use App\Http\Controllers\AdminCleaningOrderController;
 use App\Http\Controllers\BusinessSettingController;
 use App\Http\Controllers\ClientCategoryController;
 use App\Http\Controllers\ClientController;
@@ -48,6 +49,8 @@ Route::middleware(['auth', 'role:super_admin,employee'])->group(function () {
 
     Route::get('/account-statements', [AccountStatementController::class, 'index'])->name('account-statements.index');
     Route::post('/account-statements/orders/{order}/adjustment', [AccountStatementController::class, 'adjustment'])->name('account-statements.adjustment');
+    Route::post('/cleaning-orders/{order}/approve', [AdminCleaningOrderController::class, 'approve'])->name('cleaning-orders.approve');
+    Route::post('/cleaning-orders/{order}/create-invoice', [AdminCleaningOrderController::class, 'createInvoice'])->name('cleaning-orders.create-invoice');
 });
 
 Route::middleware(['auth', 'role:super_admin'])->group(function () {
@@ -65,5 +68,7 @@ Route::middleware(['auth', 'role:client'])->group(function () {
     Route::get('/portal/orders', [PortalOrderController::class, 'index'])->name('portal.orders.index');
     Route::get('/portal/orders/create', [PortalOrderController::class, 'create'])->name('portal.orders.create');
     Route::post('/portal/orders', [PortalOrderController::class, 'store'])->name('portal.orders.store');
+    Route::get('/portal/orders/{order}/edit', [PortalOrderController::class, 'edit'])->name('portal.orders.edit');
+    Route::put('/portal/orders/{order}', [PortalOrderController::class, 'update'])->name('portal.orders.update');
     Route::get('/portal/orders/{order}', [PortalOrderController::class, 'show'])->name('portal.orders.show');
 });

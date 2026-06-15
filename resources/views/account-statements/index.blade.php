@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('content')
-@php($statuses = ['submitted' => 'Envoyée', 'reviewed' => 'Révisée', 'invoiced' => 'Facturée', 'cancelled' => 'Annulée'])
+@php($statuses = ['submitted' => 'À approuver', 'reviewed' => 'Approuvée', 'invoiced' => 'Facturée', 'cancelled' => 'Annulée'])
 
 <div class="flex flex-wrap items-center justify-between gap-4">
     <div>
@@ -54,6 +54,7 @@
             <th class="border bg-villeneuve-mint p-2 text-left">Date</th>
             <th class="border bg-villeneuve-mint p-2 text-left">Client</th>
             <th class="border bg-villeneuve-mint p-2 text-left">Employé</th>
+            <th class="border bg-villeneuve-mint p-2 text-left">No de département</th>
             <th class="border bg-villeneuve-mint p-2 text-left">Items</th>
             <th class="border bg-villeneuve-mint p-2 text-right">Sous-total</th>
             <th class="border bg-villeneuve-mint p-2 text-right">Ajustement</th>
@@ -65,6 +66,7 @@
                 <td class="border p-2">{{ $order->service_date->format('Y-m-d') }}</td>
                 <td class="border p-2">{{ $order->client?->name }}</td>
                 <td class="border p-2">{{ $order->employee_name }}</td>
+                <td class="border p-2">{{ $order->department_number ?: '—' }}</td>
                 <td class="border p-2">
                     <div class="space-y-1">
                         @foreach($order->items as $item)
@@ -97,7 +99,7 @@
             </tr>
         @empty
             <tr>
-                <td colspan="8" class="border p-4 text-center text-stone-600">Aucune commande pour cette période.</td>
+                <td colspan="9" class="border p-4 text-center text-stone-600">Aucune commande pour cette période.</td>
             </tr>
         @endforelse
     </table>

@@ -54,4 +54,9 @@ class MonthlyInvoice extends Model
     {
         return $this->hasMany(UploadedDocument::class);
     }
+
+    public function cleaningOrders(): HasMany
+    {
+        return $this->hasMany(CleaningOrder::class);
+    }
 }

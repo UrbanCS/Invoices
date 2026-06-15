@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('content')
-@php($statuses = ['submitted' => 'Envoyée', 'reviewed' => 'Révisée', 'invoiced' => 'Facturée', 'cancelled' => 'Annulée'])
+@php($statuses = ['submitted' => 'Envoyée', 'reviewed' => 'Approuvée', 'invoiced' => 'Facturée', 'cancelled' => 'Annulée'])
 @php($language = auth()->user()->client->default_language ?? 'fr')
 
 <div class="flex flex-wrap items-center justify-between gap-4">
@@ -9,12 +9,18 @@
         <p class="label">{{ $statuses[$order->status] ?? $order->status }}</p>
         <h1 class="text-3xl font-extrabold text-villeneuve-forest">Commande du {{ $order->service_date->format('Y-m-d') }}</h1>
     </div>
-    <a class="btn btn-secondary" href="{{ route('portal.orders.index') }}">Mes commandes</a>
+    <div class="flex gap-2">
+        @if($order->status === 'submitted' && ! $order->monthly_invoice_id)
+            <a class="btn btn-primary" href="{{ route('portal.orders.edit', $order) }}">Corriger la commande</a>
+        @endif
+        <a class="btn btn-secondary" href="{{ route('portal.orders.index') }}">Mes commandes</a>
+    </div>
 </div>
 
 <section class="panel mt-6 p-6">
-    <div class="grid gap-4 md:grid-cols-3">
+    <div class="grid gap-4 md:grid-cols-4">
         <div><span class="label">Employé</span><div class="mt-1 font-semibold">{{ $order->employee_name }}</div></div>
+        <div><span class="label">No de département</span><div class="mt-1 font-semibold">{{ $order->department_number ?: '—' }}</div></div>
         <div><span class="label">Date</span><div class="mt-1 font-semibold">{{ $order->service_date->format('Y-m-d') }}</div></div>
         <div><span class="label">Total</span><div class="mt-1 font-black text-villeneuve-forest">{{ $money->format($order->total_cents, $language) }}</div></div>
     </div>

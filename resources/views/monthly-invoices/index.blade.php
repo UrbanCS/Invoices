@@ -51,6 +51,61 @@
     </div>
 </form>
 
+<section class="panel mt-6 overflow-x-auto p-5">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+            <h2 class="text-xl font-bold text-villeneuve-forest">Commandes client à traiter</h2>
+            <p class="mt-1 text-sm text-stone-600">Approuve une commande, puis crée son brouillon de facture.</p>
+        </div>
+        <a class="btn btn-secondary" href="{{ route('account-statements.index') }}">Voir les états de compte</a>
+    </div>
+
+    <table class="table mt-4 w-full">
+        <tr>
+            <th>Date</th>
+            <th>Client</th>
+            <th>Employé</th>
+            <th>No de département</th>
+            <th>Items</th>
+            <th>Statut</th>
+            <th class="text-right">Total</th>
+            <th></th>
+        </tr>
+        @forelse($orders as $order)
+            <tr>
+                <td>{{ $order->service_date->format('Y-m-d') }}</td>
+                <td>{{ $order->client?->name ?? 'Client supprimé' }}</td>
+                <td>{{ $order->employee_name }}</td>
+                <td>{{ $order->department_number ?: '—' }}</td>
+                <td>
+                    @foreach($order->items as $item)
+                        <div>{{ $item->item_name_snapshot }} × {{ rtrim(rtrim(number_format((float) $item->quantity, 2, ',', ' '), '0'), ',') }}</div>
+                    @endforeach
+                </td>
+                <td>{{ $order->status === 'submitted' ? 'À approuver' : 'Approuvée' }}</td>
+                <td class="text-right">{{ $money->format($order->total_cents, $order->client?->default_language ?? 'fr') }}</td>
+                <td class="text-right">
+                    @if($order->status === 'submitted')
+                        <form method="post" action="{{ route('cleaning-orders.approve', $order) }}">
+                            @csrf
+                            <button class="btn btn-primary">Approuver</button>
+                        </form>
+                    @else
+                        <form method="post" action="{{ route('cleaning-orders.create-invoice', $order) }}">
+                            @csrf
+                            <button class="btn btn-primary">Créer la facture</button>
+                        </form>
+                    @endif
+                </td>
+            </tr>
+        @empty
+            <tr>
+                <td colspan="8" class="py-6 text-center text-stone-500">Aucune commande en attente.</td>
+            </tr>
+        @endforelse
+    </table>
+</section>
+
 <div class="panel mt-6 overflow-x-auto">
     <table class="table w-full">
         <tr>

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\BusinessSetting;
+use App\Models\CleaningOrder;
 use App\Models\Client;
 use App\Models\MonthlyInvoice;
 use App\Models\UploadedDocument;
@@ -40,6 +41,10 @@ class MonthlyInvoiceController extends Controller
         return view('monthly-invoices.index', [
             'invoices' => $query->latest('invoice_date')->paginate(20)->withQueryString(),
             'clients' => Client::orderBy('name')->get(),
+            'orders' => CleaningOrder::with(['client', 'items'])
+                ->whereIn('status', ['submitted', 'reviewed'])
+                ->latest('service_date')
+                ->get(),
         ]);
     }
 
