@@ -166,4 +166,94 @@ class CleaningOrderInvoiceWorkflowTest extends TestCase
         $this->assertSame('7', $entry->item_details[0]['quantity']);
         $this->assertSame(725, $entry->item_details[0]['unit_price_cents']);
     }
+
+    public function test_admin_can_create_one_monthly_invoice_from_approved_account_statement_orders(): void
+    {
+        $admin = User::create([
+            'name' => 'Admin',
+            'email' => 'admin@test.com',
+            'password' => 'password',
+            'role' => 'super_admin',
+        ]);
+        $client = Client::create([
+            'name' => 'Hotel Metcalfe',
+            'tax_profile' => 'on_hst',
+            'default_language' => 'fr',
+        ]);
+        $category = ClientCategory::create([
+            'client_id' => $client->id,
+            'name' => 'Habit',
+            'default_price_cents' => 725,
+            'is_taxable' => true,
+            'is_active' => true,
+        ]);
+
+        $firstOrder = CleaningOrder::create([
+            'client_id' => $client->id,
+            'service_date' => '2026-06-12',
+            'employee_name' => 'Julian',
+            'department_number' => '2357',
+            'status' => 'reviewed',
+            'subtotal_cents' => 5075,
+            'total_cents' => 5075,
+        ]);
+        $firstOrder->items()->create([
+            'client_category_id' => $category->id,
+            'item_name_snapshot' => 'Habit',
+            'unit_price_cents' => 725,
+            'quantity' => 7,
+            'total_cents' => 5075,
+        ]);
+
+        $secondOrder = CleaningOrder::create([
+            'client_id' => $client->id,
+            'service_date' => '2026-06-13',
+            'employee_name' => 'Marie',
+            'department_number' => '478',
+            'status' => 'reviewed',
+            'subtotal_cents' => 1450,
+            'total_cents' => 1450,
+        ]);
+        $secondOrder->items()->create([
+            'client_category_id' => $category->id,
+            'item_name_snapshot' => 'Habit',
+            'unit_price_cents' => 725,
+            'quantity' => 2,
+            'total_cents' => 1450,
+        ]);
+
+        $pendingOrder = CleaningOrder::create([
+            'client_id' => $client->id,
+            'service_date' => '2026-06-14',
+            'employee_name' => 'Pas approuvé',
+            'department_number' => '999',
+            'status' => 'submitted',
+            'subtotal_cents' => 725,
+            'total_cents' => 725,
+        ]);
+        $pendingOrder->items()->create([
+            'client_category_id' => $category->id,
+            'item_name_snapshot' => 'Habit',
+            'unit_price_cents' => 725,
+            'quantity' => 1,
+            'total_cents' => 725,
+        ]);
+
+        $response = $this->actingAs($admin)->post(route('account-statements.create-invoice'), [
+            'month' => 6,
+            'year' => 2026,
+            'client_id' => $client->id,
+        ]);
+
+        $invoice = MonthlyInvoice::with('entries')->firstOrFail();
+        $response->assertRedirect(route('monthly-invoices.show', $invoice));
+
+        $this->assertSame(6525, $invoice->subtotal_cents);
+        $this->assertSame(848, $invoice->tax_cents);
+        $this->assertSame(7373, $invoice->grand_total_cents);
+        $this->assertCount(2, $invoice->entries);
+        $this->assertDatabaseHas('cleaning_orders', ['id' => $firstOrder->id, 'status' => 'invoiced', 'monthly_invoice_id' => $invoice->id]);
+        $this->assertDatabaseHas('cleaning_orders', ['id' => $secondOrder->id, 'status' => 'invoiced', 'monthly_invoice_id' => $invoice->id]);
+        $this->assertDatabaseHas('cleaning_orders', ['id' => $pendingOrder->id, 'status' => 'submitted', 'monthly_invoice_id' => null]);
+    }
 }

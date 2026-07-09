@@ -48,6 +48,7 @@ Route::middleware(['auth', 'role:super_admin,employee'])->group(function () {
     Route::get('/reports/export/csv', [ReportController::class, 'exportCsv'])->name('reports.export.csv');
 
     Route::get('/account-statements', [AccountStatementController::class, 'index'])->name('account-statements.index');
+    Route::post('/account-statements/create-invoice', [AccountStatementController::class, 'createInvoice'])->name('account-statements.create-invoice');
     Route::post('/account-statements/orders/{order}/adjustment', [AccountStatementController::class, 'adjustment'])->name('account-statements.adjustment');
     Route::post('/cleaning-orders/{order}/approve', [AdminCleaningOrderController::class, 'approve'])->name('cleaning-orders.approve');
     Route::post('/cleaning-orders/{order}/create-invoice', [AdminCleaningOrderController::class, 'createInvoice'])->name('cleaning-orders.create-invoice');

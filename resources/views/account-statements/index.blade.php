@@ -48,6 +48,31 @@
     </div>
 </section>
 
+<section class="panel mt-6 p-5">
+    <div class="flex flex-wrap items-center justify-between gap-4">
+        <div>
+            <h2 class="text-xl font-bold text-villeneuve-forest">Facture mensuelle</h2>
+            @if($clientId)
+                <p class="mt-1 text-sm text-stone-600">
+                    Génère une seule facture pour les commandes approuvées non facturées de ce client pendant ce mois.
+                    Commandes prêtes: {{ $invoiceableOrdersCount }}.
+                </p>
+            @else
+                <p class="mt-1 text-sm text-stone-600">Choisis un client précis pour générer une facture mensuelle.</p>
+            @endif
+        </div>
+        @if($clientId)
+            <form method="post" action="{{ route('account-statements.create-invoice') }}">
+                @csrf
+                <input type="hidden" name="month" value="{{ $month }}">
+                <input type="hidden" name="year" value="{{ $year }}">
+                <input type="hidden" name="client_id" value="{{ $clientId }}">
+                <button class="btn btn-primary" @disabled($invoiceableOrdersCount === 0)>Créer la facture du mois</button>
+            </form>
+        @endif
+    </div>
+</section>
+
 <section class="panel mt-6 overflow-x-auto p-6">
     <table class="w-full border-collapse text-sm">
         <tr>
