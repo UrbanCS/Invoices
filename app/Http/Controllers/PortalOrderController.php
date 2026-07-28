@@ -115,7 +115,7 @@ class PortalOrderController extends Controller
     {
         abort_unless(Auth::user()->client_id === $order->client_id, 403);
 
-        return view('portal.orders.show', ['order' => $order->load('items'), 'money' => $money]);
+        return view('portal.orders.show', ['order' => $order->load('items.category'), 'money' => $money]);
     }
 
     private function validated(Request $request): array

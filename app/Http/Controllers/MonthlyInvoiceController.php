@@ -346,6 +346,8 @@ class MonthlyInvoiceController extends Controller
         return $client->activeCategories->map(fn ($category) => [
             'id' => $category->id,
             'name' => $category->name,
+            'service_type' => $category->service_type,
+            'audience' => $category->audience,
             'sort_order' => $category->sort_order,
             'is_taxable' => $category->is_taxable,
         ])->values()->all();

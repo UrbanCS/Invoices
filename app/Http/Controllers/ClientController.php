@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Client;
 use App\Models\AuditLog;
+use App\Models\ClientCategory;
 use App\Models\DailyRecordItem;
 use App\Models\InvoiceAdjustment;
 use App\Models\MonthlyInvoiceEntry;
@@ -51,8 +52,12 @@ class ClientController extends Controller
         return view('clients.form', [
             'client' => $client,
             'categoryRows' => $client->categories->where('is_active', true)->values()->map(fn ($category) => [
+                'id' => $category->id,
                 'name' => $category->name,
                 'price' => number_format($category->default_price_cents / 100, 2, ',', ' '),
+                'service_type' => $category->service_type,
+                'audience' => $category->audience,
+                'sort_order' => $category->sort_order,
             ]),
         ]);
     }
@@ -126,13 +131,35 @@ class ClientController extends Controller
             'logo' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
             'create_portal_user' => ['nullable', 'boolean'],
             'portal_password' => ['nullable', 'string', 'min:8'],
+            'category_ids' => ['nullable', 'array'],
+            'category_ids.*' => ['nullable', 'integer'],
+            'category_names' => ['nullable', 'array'],
+            'category_names.*' => ['nullable', 'string', 'max:255'],
+            'category_prices' => ['nullable', 'array'],
+            'category_prices.*' => ['nullable', 'string', 'max:50'],
+            'category_service_types' => ['nullable', 'array'],
+            'category_service_types.*' => ['nullable', 'in:'.implode(',', array_keys(ClientCategory::SERVICE_TYPES))],
+            'category_audiences' => ['nullable', 'array'],
+            'category_audiences.*' => ['nullable', 'in:'.implode(',', array_keys(ClientCategory::AUDIENCES))],
+            'category_sort_orders' => ['nullable', 'array'],
+            'category_sort_orders.*' => ['nullable', 'integer', 'min:0', 'max:999999'],
         ]) + ['is_active' => $request->boolean('is_active', true)];
 
         if ($request->hasFile('logo')) {
             $data['logo_path'] = $request->file('logo')->store('client-logos', 'public');
         }
 
-        unset($data['logo'], $data['create_portal_user'], $data['portal_password']);
+        unset(
+            $data['logo'],
+            $data['create_portal_user'],
+            $data['portal_password'],
+            $data['category_ids'],
+            $data['category_names'],
+            $data['category_prices'],
+            $data['category_service_types'],
+            $data['category_audiences'],
+            $data['category_sort_orders'],
+        );
 
         return $data;
     }
@@ -172,35 +199,58 @@ class ClientController extends Controller
     private function syncNewCategories(Client $client, Request $request): void
     {
         $money = app(MoneyFormatter::class);
+        $ids = $request->input('category_ids', []);
         $prices = $request->input('category_prices', []);
-        $names = collect($request->input('category_names', []))
+        $serviceTypes = $request->input('category_service_types', []);
+        $audiences = $request->input('category_audiences', []);
+        $sortOrders = $request->input('category_sort_orders', []);
+        $rows = collect($request->input('category_names', []))
             ->map(fn ($name, $index) => [
+                'id' => isset($ids[$index]) && (int) $ids[$index] > 0 ? (int) $ids[$index] : null,
                 'name' => trim((string) $name),
                 'price_cents' => max(0, $money->parse($prices[$index] ?? null)),
+                'service_type' => array_key_exists($serviceTypes[$index] ?? '', ClientCategory::SERVICE_TYPES)
+                    ? $serviceTypes[$index]
+                    : 'other',
+                'audience' => array_key_exists($audiences[$index] ?? '', ClientCategory::AUDIENCES)
+                    ? $audiences[$index]
+                    : 'unisex',
+                'sort_order' => max(0, (int) ($sortOrders[$index] ?? ($index + 1))),
             ])
             ->filter(fn ($row) => filled($row['name']))
-            ->unique(fn ($row) => mb_strtolower($row['name']))
+            ->unique(fn ($row) => $row['id']
+                ? 'id:'.$row['id']
+                : 'new:'.$row['service_type'].':'.$row['audience'].':'.mb_strtolower($row['name']))
             ->values();
 
-        $submittedNames = $names->pluck('name');
+        $existing = $client->categories()->get()->keyBy('id');
+        $activeIds = [];
 
-        $client->categories()
-            ->when(
-                $submittedNames->isNotEmpty(),
-                fn ($query) => $query->whereNotIn('name', $submittedNames),
-            )
-            ->update(['is_active' => false]);
+        foreach ($rows as $row) {
+            $category = $row['id'] ? $existing->get($row['id']) : null;
+            $payload = [
+                'name' => $row['name'],
+                'service_type' => $row['service_type'],
+                'audience' => $row['audience'],
+                'sort_order' => $row['sort_order'],
+                'is_taxable' => true,
+                'default_price_cents' => $row['price_cents'],
+                'is_active' => true,
+            ];
 
-        foreach ($names as $index => $row) {
-            $client->categories()->updateOrCreate(
-                ['name' => $row['name']],
-                [
-                    'sort_order' => $index + 1,
-                    'is_taxable' => true,
-                    'default_price_cents' => $row['price_cents'],
-                    'is_active' => true,
-                ]
-            );
+            if ($category) {
+                $category->update($payload);
+            } else {
+                $category = $client->categories()->create($payload);
+            }
+
+            $activeIds[] = $category->id;
+        }
+
+        if ($activeIds === []) {
+            $client->categories()->update(['is_active' => false]);
+        } else {
+            $client->categories()->whereNotIn('id', $activeIds)->update(['is_active' => false]);
         }
     }
 }

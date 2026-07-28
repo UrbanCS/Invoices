@@ -58,6 +58,8 @@ Route::middleware(['auth', 'role:super_admin'])->group(function () {
     Route::resource('clients', ClientController::class);
     Route::get('/clients/{client}/categories', [ClientCategoryController::class, 'index'])->name('clients.categories.index');
     Route::post('/clients/{client}/categories', [ClientCategoryController::class, 'store'])->name('clients.categories.store');
+    Route::put('/clients/{client}/categories/{category}', [ClientCategoryController::class, 'update'])->name('clients.categories.update');
+    Route::delete('/clients/{client}/categories/{category}', [ClientCategoryController::class, 'destroy'])->name('clients.categories.destroy');
     Route::get('/settings/business', [BusinessSettingController::class, 'edit'])->name('settings.business.edit');
     Route::put('/settings/business', [BusinessSettingController::class, 'update'])->name('settings.business.update');
 });

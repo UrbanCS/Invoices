@@ -58,7 +58,7 @@
             <div>
                 <h2 class="text-xl font-bold text-villeneuve-forest">Calcul item × quantité</h2>
                 <p class="mt-1 text-sm text-stone-600">
-                    Choisis un jour, un item, une quantité et un prix unitaire. Le total sera ajouté automatiquement dans la grille mensuelle.
+                    Choisis un jour, un item et une quantité. Le prix fixe du catalogue et le total seront appliqués automatiquement.
                 </p>
             </div>
             <button type="button" class="btn btn-secondary" data-item-add>Ajouter à la grille</button>
@@ -71,8 +71,17 @@
             <div>
                 <label class="label">Item</label>
                 <select class="mt-1 w-full" data-item-category>
-                    @foreach($selectedClient?->activeCategories ?? [] as $category)
-                        <option value="{{ $category->id }}">{{ $category->name }}</option>
+                    @foreach(($selectedClient?->activeCategories ?? collect())->groupBy('service_type') as $serviceType => $serviceCategories)
+                        @foreach($serviceCategories->groupBy('audience') as $audience => $audienceCategories)
+                            <optgroup label="{{ App\Models\ClientCategory::serviceLabel($serviceType) }} · {{ App\Models\ClientCategory::audienceLabel($audience) }}">
+                                @foreach($audienceCategories as $category)
+                                    <option
+                                        value="{{ $category->id }}"
+                                        data-unit-price="{{ $category->default_price_cents }}"
+                                    >{{ $category->name }}</option>
+                                @endforeach
+                            </optgroup>
+                        @endforeach
                     @endforeach
                 </select>
             </div>
@@ -82,7 +91,7 @@
             </div>
             <div>
                 <label class="label">Prix unitaire</label>
-                <input class="mt-1 w-full text-right" inputmode="decimal" placeholder="0,00" data-item-unit-price>
+                <input class="mt-1 w-full bg-stone-100 text-right" inputmode="decimal" readonly value="0,00" data-item-unit-price>
             </div>
             <div>
                 <label class="label">Total calculé</label>
@@ -107,7 +116,15 @@
                 <tr>
                     <th class="border bg-villeneuve-mint p-2">Jour</th>
                     @foreach($selectedClient?->activeCategories ?? [] as $category)
-                        <th class="border bg-villeneuve-mint p-2 text-right">{{ $singleCategory ? 'Montant' : $category->name }}</th>
+                        <th class="border bg-villeneuve-mint p-2 text-right">
+                            @unless($singleCategory)
+                                <span class="block text-[10px] font-semibold text-stone-500">
+                                    {{ App\Models\ClientCategory::serviceLabel($category->service_type) }}
+                                    · {{ App\Models\ClientCategory::audienceLabel($category->audience) }}
+                                </span>
+                            @endunless
+                            {{ $singleCategory ? 'Montant' : $category->name }}
+                        </th>
                     @endforeach
                 </tr>
             </thead>
@@ -201,6 +218,13 @@
             totalInput.value = formatMoney(currentTotal());
         };
 
+        const useCatalogPrice = () => {
+            const option = categoryInput.options[categoryInput.selectedIndex];
+            const cents = Number.parseInt(option?.dataset.unitPrice || '0', 10);
+            unitPriceInput.value = formatMoney(cents / 100);
+            updateTotal();
+        };
+
         const addToGrid = () => {
             const day = dayInput.value;
             const category = categoryInput.value;
@@ -234,15 +258,15 @@
                 detailList.appendChild(input);
             });
 
-            unitPriceInput.value = '';
             quantityInput.value = '1';
-            updateTotal();
+            useCatalogPrice();
             target.focus();
         };
 
-        [quantityInput, unitPriceInput].forEach((input) => input.addEventListener('input', updateTotal));
+        quantityInput.addEventListener('input', updateTotal);
+        categoryInput.addEventListener('change', useCatalogPrice);
         addButton?.addEventListener('click', addToGrid);
-        updateTotal();
+        useCatalogPrice();
     })();
 </script>
 @endsection

@@ -4,6 +4,7 @@
 @php
     $editing = $order->exists;
     $orderQuantities = $editing ? $order->items->pluck('quantity', 'client_category_id') : collect();
+    $groupedCategories = $client->activeCategories->groupBy('service_type');
 @endphp
 <div class="flex flex-wrap items-center justify-between gap-4">
     <div>
@@ -49,46 +50,71 @@
 
     <section class="panel overflow-x-auto p-6">
         <h2 class="text-xl font-bold text-villeneuve-forest">Items à nettoyer</h2>
-        <p class="mt-1 text-sm text-stone-600">Les prix sont fixés par Nettoyeur Villeneuve. Tu peux seulement entrer les quantités.</p>
+        <p class="mt-1 text-sm text-stone-600">
+            Les prix sont fixés par Nettoyeur Villeneuve. Tu peux sélectionner les items et modifier seulement les quantités.
+        </p>
 
-        <table class="mt-4 w-full border-collapse text-sm">
-            <tr>
-                <th class="border bg-villeneuve-mint p-2 text-left">Item</th>
-                <th class="border bg-villeneuve-mint p-2 text-right">Prix unit.</th>
-                <th class="border bg-villeneuve-mint p-2 text-right">Quantité</th>
-                <th class="border bg-villeneuve-mint p-2 text-right">Total</th>
-            </tr>
-            @forelse($client->activeCategories as $category)
-                <tr data-order-row>
-                    <td class="border p-2 font-semibold">{{ $category->name }}</td>
-                    <td class="border p-2 text-right" data-unit-price="{{ $category->default_price_cents }}">
-                        {{ number_format($category->default_price_cents / 100, 2, ',', ' ') }} $
-                    </td>
-                    <td class="border p-1">
-                        <input
-                            class="w-full text-right"
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            name="quantities[{{ $category->id }}]"
-                            value="{{ old('quantities.'.$category->id, $orderQuantities->get($category->id)) }}"
-                            data-quantity
-                        >
-                    </td>
-                    <td class="border p-2 text-right font-semibold" data-line-total>0,00 $</td>
-                </tr>
-            @empty
-                <tr>
-                    <td colspan="4" class="border p-3 text-center text-stone-600">Aucun item disponible pour ce client.</td>
-                </tr>
-            @endforelse
-        </table>
+        @forelse($groupedCategories as $serviceType => $serviceCategories)
+            <div class="mt-6 overflow-hidden rounded border border-villeneuve-line">
+                <div class="bg-villeneuve-forest px-4 py-3 text-lg font-bold text-white">
+                    {{ App\Models\ClientCategory::serviceLabel($serviceType) }}
+                </div>
+
+                @foreach($serviceCategories->groupBy('audience') as $audience => $audienceCategories)
+                    <div class="border-t border-villeneuve-line first:border-0">
+                        <div class="bg-villeneuve-mint px-4 py-2 font-bold uppercase tracking-wide text-villeneuve-forest">
+                            {{ App\Models\ClientCategory::audienceLabel($audience) }}
+                        </div>
+                        <table class="w-full border-collapse text-sm">
+                            <thead>
+                                <tr>
+                                    <th class="border-t bg-stone-50 p-2 text-left">Item</th>
+                                    <th class="border-t bg-stone-50 p-2 text-right">Prix unit.</th>
+                                    <th class="border-t bg-stone-50 p-2 text-right">Quantité</th>
+                                    <th class="border-t bg-stone-50 p-2 text-right">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($audienceCategories as $category)
+                                    <tr data-order-row>
+                                        <td class="border-t p-2 font-semibold">{{ $category->name }}</td>
+                                        <td class="border-t p-2 text-right" data-unit-price="{{ $category->default_price_cents }}">
+                                            {{ number_format($category->default_price_cents / 100, 2, ',', ' ') }} $
+                                        </td>
+                                        <td class="border-t p-1">
+                                            <input
+                                                class="w-full text-right"
+                                                type="number"
+                                                min="0"
+                                                step="0.01"
+                                                name="quantities[{{ $category->id }}]"
+                                                value="{{ old('quantities.'.$category->id, $orderQuantities->get($category->id)) }}"
+                                                data-quantity
+                                                aria-label="Quantité pour {{ $category->name }}"
+                                            >
+                                        </td>
+                                        <td class="border-t p-2 text-right font-semibold" data-line-total>0,00 $</td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @endforeach
+            </div>
+        @empty
+            <div class="mt-4 border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">
+                Aucun item disponible pour ce client. Communique avec Nettoyeur Villeneuve.
+            </div>
+        @endforelse
 
         <div class="mt-4 flex justify-end text-xl font-black text-villeneuve-forest">
             Total: <span class="ml-3" data-order-total>0,00 $</span>
         </div>
     </section>
 
+    <p class="text-sm text-stone-600">
+        Après l’envoi, Nettoyeur Villeneuve vérifiera la commande et l’intégrera à la facture du mois. Une commande non approuvée peut être corrigée depuis « Mes commandes ».
+    </p>
     <button class="btn btn-primary" @disabled($client->activeCategories->isEmpty())>{{ $editing ? 'Sauvegarder les corrections' : 'Envoyer la commande' }}</button>
 </form>
 

@@ -19,7 +19,20 @@ class Client extends Model
 
     public function categories(): HasMany
     {
-        return $this->hasMany(ClientCategory::class)->orderBy('sort_order')->orderBy('name');
+        return $this->hasMany(ClientCategory::class)
+            ->orderByRaw("CASE service_type
+                WHEN 'dry_cleaning' THEN 1
+                WHEN 'laundry' THEN 2
+                WHEN 'pressing' THEN 3
+                ELSE 4
+            END")
+            ->orderByRaw("CASE audience
+                WHEN 'gentlemen' THEN 1
+                WHEN 'ladies' THEN 2
+                ELSE 3
+            END")
+            ->orderBy('sort_order')
+            ->orderBy('name');
     }
 
     public function activeCategories(): HasMany

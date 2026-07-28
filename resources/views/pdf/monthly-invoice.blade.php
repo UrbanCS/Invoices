@@ -97,7 +97,15 @@
         <tr>
             <th style="width: 50px;">Jour</th>
             @foreach($categories as $category)
-                <th class="right">{{ $singleCategory ? 'Montant' : ($category['name'] ?? 'Montant') }}</th>
+                <th class="right">
+                    @if(! $singleCategory && isset($category['service_type'], $category['audience']))
+                        <span class="muted" style="display: block; font-size: 7px; font-weight: normal;">
+                            {{ App\Models\ClientCategory::serviceLabel($category['service_type']) }}
+                            · {{ App\Models\ClientCategory::audienceLabel($category['audience']) }}
+                        </span>
+                    @endif
+                    {{ $singleCategory ? 'Montant' : ($category['name'] ?? 'Montant') }}
+                </th>
             @endforeach
         </tr>
     </thead>

@@ -35,6 +35,12 @@
                 <th class="w-20 border border-villeneuve-line bg-villeneuve-mint px-3 py-2 text-left text-xs font-bold uppercase text-villeneuve-forest">Jour</th>
                 @foreach($invoice->category_snapshot ?? [] as $category)
                     <th class="border border-villeneuve-line bg-villeneuve-mint px-3 py-2 text-center text-xs font-bold uppercase text-villeneuve-forest">
+                        @if(! $singleCategory && isset($category['service_type'], $category['audience']))
+                            <span class="mb-1 block text-[9px] font-semibold normal-case text-stone-500">
+                                {{ App\Models\ClientCategory::serviceLabel($category['service_type']) }}
+                                · {{ App\Models\ClientCategory::audienceLabel($category['audience']) }}
+                            </span>
+                        @endif
                         {{ $singleCategory ? 'Montant' : $category['name'] }}
                     </th>
                 @endforeach

@@ -71,6 +71,100 @@ class CleaningOrderInvoiceWorkflowTest extends TestCase
         $this->assertSame('3.00', $order->items->first()->quantity);
     }
 
+    public function test_client_order_form_groups_catalog_items_and_keeps_prices_read_only(): void
+    {
+        $client = Client::create([
+            'name' => 'Hilton Lac Leamy',
+            'tax_profile' => 'qc_tps_tvq',
+            'default_language' => 'fr',
+        ]);
+        ClientCategory::create([
+            'client_id' => $client->id,
+            'name' => 'Complet / Suit',
+            'service_type' => 'dry_cleaning',
+            'audience' => 'gentlemen',
+            'sort_order' => 1,
+            'default_price_cents' => 1850,
+            'is_taxable' => true,
+            'is_active' => true,
+        ]);
+        ClientCategory::create([
+            'client_id' => $client->id,
+            'name' => 'Chemisier / Blouse',
+            'service_type' => 'laundry',
+            'audience' => 'ladies',
+            'sort_order' => 1,
+            'default_price_cents' => 950,
+            'is_taxable' => true,
+            'is_active' => true,
+        ]);
+        $user = User::create([
+            'name' => 'Client Hilton',
+            'email' => 'hilton@test.com',
+            'password' => 'password',
+            'role' => 'client',
+            'client_id' => $client->id,
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('portal.orders.create'))
+            ->assertOk()
+            ->assertSee('Nettoyage à sec / Dry Cleaning')
+            ->assertSee('Messieurs / Gentlemen')
+            ->assertSee('Blanchissage / Laundry')
+            ->assertSee('Dames / Ladies')
+            ->assertSee('18,50 $')
+            ->assertSee('9,50 $')
+            ->assertDontSee('name="unit_price', false);
+    }
+
+    public function test_admin_can_update_catalog_group_price_and_order(): void
+    {
+        $admin = User::create([
+            'name' => 'Admin',
+            'email' => 'admin-catalog@test.com',
+            'password' => 'password',
+            'role' => 'super_admin',
+        ]);
+        $client = Client::create([
+            'name' => 'Hilton Lac Leamy',
+            'tax_profile' => 'qc_tps_tvq',
+            'default_language' => 'fr',
+        ]);
+        $category = ClientCategory::create([
+            'client_id' => $client->id,
+            'name' => 'Complet / Suit',
+            'service_type' => 'dry_cleaning',
+            'audience' => 'gentlemen',
+            'sort_order' => 8,
+            'default_price_cents' => 1850,
+            'is_taxable' => true,
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($admin)
+            ->put(route('clients.categories.update', [$client, $category]), [
+                'name' => 'Complet 2 pièces / Suit 2 pcs',
+                'service_type' => 'dry_cleaning',
+                'audience' => 'gentlemen',
+                'default_price' => '19,50',
+                'sort_order' => 1,
+                'is_taxable' => 1,
+                'is_active' => 1,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('client_categories', [
+            'id' => $category->id,
+            'name' => 'Complet 2 pièces / Suit 2 pcs',
+            'service_type' => 'dry_cleaning',
+            'audience' => 'gentlemen',
+            'default_price_cents' => 1950,
+            'sort_order' => 1,
+            'is_active' => true,
+        ]);
+    }
+
     public function test_client_cannot_correct_an_order_after_it_is_approved(): void
     {
         $client = Client::create([

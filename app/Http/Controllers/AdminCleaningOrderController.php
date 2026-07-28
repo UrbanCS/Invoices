@@ -51,6 +51,8 @@ class AdminCleaningOrderController extends Controller
                 ->map(fn ($item) => [
                     'id' => $item->client_category_id,
                     'name' => $item->item_name_snapshot,
+                    'service_type' => $item->category?->service_type ?? 'other',
+                    'audience' => $item->category?->audience ?? 'unisex',
                     'sort_order' => $item->category?->sort_order ?? 0,
                     'is_taxable' => $item->category?->is_taxable ?? true,
                 ])

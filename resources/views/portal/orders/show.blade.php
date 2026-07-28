@@ -30,21 +30,31 @@
 </section>
 
 <section class="panel mt-6 overflow-x-auto p-6">
-    <table class="table w-full">
-        <tr>
-            <th>Item</th>
-            <th class="text-right">Prix unit.</th>
-            <th class="text-right">Quantité</th>
-            <th class="text-right">Total</th>
-        </tr>
-        @foreach($order->items as $item)
-            <tr>
-                <td>{{ $item->item_name_snapshot }}</td>
-                <td class="text-right">{{ $money->format($item->unit_price_cents, $language) }}</td>
-                <td class="text-right">{{ rtrim(rtrim(number_format((float) $item->quantity, 2, ',', ' '), '0'), ',') }}</td>
-                <td class="text-right font-semibold">{{ $money->format($item->total_cents, $language) }}</td>
-            </tr>
-        @endforeach
-    </table>
+    @foreach($order->items->groupBy(fn ($item) => $item->category?->service_type ?? 'other') as $serviceType => $serviceItems)
+        <div class="{{ $loop->first ? '' : 'mt-6' }}">
+            <h2 class="text-lg font-bold text-villeneuve-forest">{{ App\Models\ClientCategory::serviceLabel($serviceType) }}</h2>
+            @foreach($serviceItems->groupBy(fn ($item) => $item->category?->audience ?? 'unisex') as $audience => $audienceItems)
+                <div class="mt-3">
+                    <div class="label">{{ App\Models\ClientCategory::audienceLabel($audience) }}</div>
+                    <table class="table mt-1 w-full">
+                        <tr>
+                            <th>Item</th>
+                            <th class="text-right">Prix unit.</th>
+                            <th class="text-right">Quantité</th>
+                            <th class="text-right">Total</th>
+                        </tr>
+                        @foreach($audienceItems as $item)
+                            <tr>
+                                <td>{{ $item->item_name_snapshot }}</td>
+                                <td class="text-right">{{ $money->format($item->unit_price_cents, $language) }}</td>
+                                <td class="text-right">{{ rtrim(rtrim(number_format((float) $item->quantity, 2, ',', ' '), '0'), ',') }}</td>
+                                <td class="text-right font-semibold">{{ $money->format($item->total_cents, $language) }}</td>
+                            </tr>
+                        @endforeach
+                    </table>
+                </div>
+            @endforeach
+        </div>
+    @endforeach
 </section>
 @endsection
