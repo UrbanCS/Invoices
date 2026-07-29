@@ -91,17 +91,31 @@
                 <td>{{ $order->status === 'submitted' ? 'À approuver' : 'Approuvée' }}</td>
                 <td class="text-right">{{ $money->format($order->total_cents, $order->client?->default_language ?? 'fr') }}</td>
                 <td class="text-right">
-                    @if($order->status === 'submitted')
-                        <form method="post" action="{{ route('cleaning-orders.approve', $order) }}">
-                            @csrf
-                            <button class="btn btn-primary">Approuver</button>
-                        </form>
-                    @else
-                        <form method="post" action="{{ route('cleaning-orders.create-invoice', $order) }}">
-                            @csrf
-                            <button class="btn btn-primary">Créer la facture</button>
-                        </form>
-                    @endif
+                    <div class="flex flex-wrap justify-end gap-2">
+                        @if($order->status === 'submitted')
+                            <form method="post" action="{{ route('cleaning-orders.approve', $order) }}">
+                                @csrf
+                                <button class="btn btn-primary">Approuver</button>
+                            </form>
+                        @else
+                            <form method="post" action="{{ route('cleaning-orders.create-invoice', $order) }}">
+                                @csrf
+                                <button class="btn btn-primary">Créer la facture</button>
+                            </form>
+                        @endif
+
+                        @if(auth()->user()->isSuperAdmin())
+                            <form
+                                method="post"
+                                action="{{ route('cleaning-orders.destroy', $order) }}"
+                                onsubmit="return confirm('Supprimer définitivement cette commande de {{ $order->client?->name ?? 'ce client' }}? Cette action est irréversible.');"
+                            >
+                                @csrf
+                                @method('delete')
+                                <button class="btn btn-secondary text-red-700">Supprimer</button>
+                            </form>
+                        @endif
+                    </div>
                 </td>
             </tr>
         @empty

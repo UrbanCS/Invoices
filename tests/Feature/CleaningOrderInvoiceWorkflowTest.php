@@ -14,6 +14,126 @@ class CleaningOrderInvoiceWorkflowTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_super_admin_can_delete_an_unbilled_cleaning_order(): void
+    {
+        $admin = User::create([
+            'name' => 'Admin',
+            'email' => 'admin@test.com',
+            'password' => 'password',
+            'role' => 'super_admin',
+        ]);
+        $client = Client::create([
+            'name' => 'Hotel Metcalfe',
+            'tax_profile' => 'on_hst',
+            'default_language' => 'fr',
+        ]);
+        $category = ClientCategory::create([
+            'client_id' => $client->id,
+            'name' => 'Habit',
+            'default_price_cents' => 725,
+            'is_taxable' => true,
+            'is_active' => true,
+        ]);
+        $order = CleaningOrder::create([
+            'client_id' => $client->id,
+            'service_date' => '2026-06-12',
+            'employee_name' => 'Julian',
+            'status' => 'reviewed',
+            'subtotal_cents' => 725,
+            'total_cents' => 725,
+        ]);
+        $item = $order->items()->create([
+            'client_category_id' => $category->id,
+            'item_name_snapshot' => 'Habit',
+            'unit_price_cents' => 725,
+            'quantity' => 1,
+            'total_cents' => 725,
+        ]);
+
+        $this->actingAs($admin)
+            ->delete(route('cleaning-orders.destroy', $order))
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Commande supprimée définitivement.');
+
+        $this->assertDatabaseMissing('cleaning_orders', ['id' => $order->id]);
+        $this->assertDatabaseMissing('cleaning_order_items', ['id' => $item->id]);
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => 'cleaning_order.deleted',
+            'entity_id' => $order->id,
+        ]);
+    }
+
+    public function test_employee_cannot_delete_a_cleaning_order(): void
+    {
+        $employee = User::create([
+            'name' => 'Employé',
+            'email' => 'employee@test.com',
+            'password' => 'password',
+            'role' => 'employee',
+        ]);
+        $client = Client::create([
+            'name' => 'Hotel Metcalfe',
+            'tax_profile' => 'on_hst',
+            'default_language' => 'fr',
+        ]);
+        $order = CleaningOrder::create([
+            'client_id' => $client->id,
+            'service_date' => '2026-06-12',
+            'employee_name' => 'Julian',
+            'status' => 'submitted',
+            'subtotal_cents' => 725,
+            'total_cents' => 725,
+        ]);
+
+        $this->actingAs($employee)
+            ->delete(route('cleaning-orders.destroy', $order))
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('cleaning_orders', ['id' => $order->id]);
+    }
+
+    public function test_super_admin_cannot_delete_an_invoiced_cleaning_order(): void
+    {
+        $admin = User::create([
+            'name' => 'Admin',
+            'email' => 'admin@test.com',
+            'password' => 'password',
+            'role' => 'super_admin',
+        ]);
+        $client = Client::create([
+            'name' => 'Hotel Metcalfe',
+            'tax_profile' => 'on_hst',
+            'default_language' => 'fr',
+        ]);
+        $invoice = MonthlyInvoice::create([
+            'client_id' => $client->id,
+            'invoice_number' => 'TEST-001',
+            'invoice_month' => 6,
+            'invoice_year' => 2026,
+            'invoice_date' => '2026-06-30',
+            'status' => 'approved',
+            'source_mode' => 'manual_grid',
+            'created_by' => $admin->id,
+        ]);
+        $order = CleaningOrder::create([
+            'client_id' => $client->id,
+            'monthly_invoice_id' => $invoice->id,
+            'service_date' => '2026-06-12',
+            'employee_name' => 'Julian',
+            'status' => 'invoiced',
+            'subtotal_cents' => 725,
+            'total_cents' => 725,
+        ]);
+
+        $this->actingAs($admin)
+            ->from(route('monthly-invoices.index'))
+            ->delete(route('cleaning-orders.destroy', $order))
+            ->assertRedirect(route('monthly-invoices.index'))
+            ->assertSessionHasErrors();
+
+        $this->assertDatabaseHas('cleaning_orders', ['id' => $order->id]);
+    }
+
     public function test_client_can_correct_own_submitted_order_without_changing_the_fixed_price(): void
     {
         $client = Client::create([

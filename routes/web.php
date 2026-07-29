@@ -56,6 +56,7 @@ Route::middleware(['auth', 'role:super_admin,employee'])->group(function () {
 
 Route::middleware(['auth', 'role:super_admin'])->group(function () {
     Route::delete('/monthly-invoices/{invoice}', [MonthlyInvoiceController::class, 'destroy'])->name('monthly-invoices.destroy');
+    Route::delete('/cleaning-orders/{order}', [AdminCleaningOrderController::class, 'destroy'])->name('cleaning-orders.destroy');
     Route::resource('clients', ClientController::class);
     Route::get('/clients/{client}/categories', [ClientCategoryController::class, 'index'])->name('clients.categories.index');
     Route::post('/clients/{client}/categories', [ClientCategoryController::class, 'store'])->name('clients.categories.store');

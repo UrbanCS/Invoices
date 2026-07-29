@@ -15,6 +15,27 @@ use Illuminate\Support\Facades\DB;
 
 class AdminCleaningOrderController extends Controller
 {
+    public function destroy(CleaningOrder $order, AuditLogService $audit): RedirectResponse
+    {
+        abort_unless(Auth::user()->isSuperAdmin(), 403);
+
+        if ($order->monthly_invoice_id || $order->status === 'invoiced') {
+            return back()->withErrors(
+                'Cette commande est déjà liée à une facture. Supprime d’abord la facture correspondante.',
+            );
+        }
+
+        $order->load('items');
+        $before = $order->toArray();
+
+        DB::transaction(function () use ($order, $audit, $before) {
+            $audit->record('cleaning_order.deleted', $order, $before, []);
+            $order->delete();
+        });
+
+        return back()->with('status', 'Commande supprimée définitivement.');
+    }
+
     public function approve(CleaningOrder $order, AuditLogService $audit): RedirectResponse
     {
         abort_unless(Auth::user()->canManage(), 403);
