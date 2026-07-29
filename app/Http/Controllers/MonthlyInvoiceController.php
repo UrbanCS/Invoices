@@ -52,7 +52,10 @@ class MonthlyInvoiceController extends Controller
     {
         $month = (int) request('month', now()->month);
         $year = (int) request('year', now()->year);
-        $clients = Client::with('activeCategories')->where('is_active', true)->orderBy('name')->get();
+        $clients = Client::with(['activeCategories', 'categories'])
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get();
         $selectedClientId = request('client_id') ?: $clients->first()?->id;
 
         return view('monthly-invoices.form', [
@@ -127,7 +130,10 @@ class MonthlyInvoiceController extends Controller
         $this->authorizeInvoice($invoice, true);
         return view('monthly-invoices.form', [
             'invoice' => $invoice->load('entries', 'adjustments'),
-            'clients' => Client::with('activeCategories')->where('is_active', true)->orderBy('name')->get(),
+            'clients' => Client::with(['activeCategories', 'categories'])
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(),
             'entries' => $invoice->entries,
             'adjustments' => $invoice->adjustments,
         ]);

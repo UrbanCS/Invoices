@@ -198,6 +198,11 @@ class ClientController extends Controller
 
     private function syncNewCategories(Client $client, Request $request): void
     {
+        // A client update must not archive the catalogue when an older or partial form omits it.
+        if (! $request->exists('category_names')) {
+            return;
+        }
+
         $money = app(MoneyFormatter::class);
         $ids = $request->input('category_ids', []);
         $prices = $request->input('category_prices', []);

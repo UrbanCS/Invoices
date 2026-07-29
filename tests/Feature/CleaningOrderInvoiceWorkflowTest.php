@@ -165,6 +165,79 @@ class CleaningOrderInvoiceWorkflowTest extends TestCase
         ]);
     }
 
+    public function test_client_update_without_catalog_fields_does_not_deactivate_existing_items(): void
+    {
+        $admin = User::create([
+            'name' => 'Admin',
+            'email' => 'admin-client-update@test.com',
+            'password' => 'password',
+            'role' => 'super_admin',
+        ]);
+        $client = Client::create([
+            'name' => 'Holiday Inn',
+            'tax_profile' => 'on_hst',
+            'default_language' => 'fr',
+            'invoice_style' => 'hotel',
+        ]);
+        $category = ClientCategory::create([
+            'client_id' => $client->id,
+            'name' => 'Chemise / Shirt',
+            'service_type' => 'laundry',
+            'audience' => 'gentlemen',
+            'default_price_cents' => 890,
+            'is_taxable' => true,
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($admin)
+            ->put(route('clients.update', $client), [
+                'name' => 'Holiday Inn',
+                'tax_profile' => 'on_hst',
+                'default_language' => 'fr',
+                'invoice_style' => 'hotel',
+                'is_active' => 1,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('client_categories', [
+            'id' => $category->id,
+            'is_active' => true,
+        ]);
+    }
+
+    public function test_admin_can_reactivate_all_catalog_items(): void
+    {
+        $admin = User::create([
+            'name' => 'Admin',
+            'email' => 'admin-reactivate@test.com',
+            'password' => 'password',
+            'role' => 'super_admin',
+        ]);
+        $client = Client::create([
+            'name' => 'Holiday Inn',
+            'tax_profile' => 'on_hst',
+            'default_language' => 'fr',
+        ]);
+        $category = ClientCategory::create([
+            'client_id' => $client->id,
+            'name' => 'Chemise / Shirt',
+            'service_type' => 'laundry',
+            'audience' => 'gentlemen',
+            'default_price_cents' => 890,
+            'is_taxable' => true,
+            'is_active' => false,
+        ]);
+
+        $this->actingAs($admin)
+            ->post(route('clients.categories.activate-all', $client))
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('client_categories', [
+            'id' => $category->id,
+            'is_active' => true,
+        ]);
+    }
+
     public function test_client_cannot_correct_an_order_after_it_is_approved(): void
     {
         $client = Client::create([

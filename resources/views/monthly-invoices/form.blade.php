@@ -5,6 +5,7 @@
     $selectedClient = $clients->firstWhere('id', (int) old('client_id', $invoice->client_id)) ?? $clients->first();
     $hasCategories = (bool) $selectedClient?->activeCategories->isNotEmpty();
     $singleCategory = $selectedClient?->activeCategories->count() === 1;
+    $inactiveCategoryCount = $selectedClient?->categories->where('is_active', false)->count() ?? 0;
 @endphp
 
 <div class="flex flex-wrap items-center justify-between gap-4">
@@ -35,7 +36,9 @@
                     <option value="">Aucun client actif</option>
                 @endif
                 @foreach($clients as $client)
-                    <option value="{{ $client->id }}" @selected($selectedClient?->id === $client->id)>{{ $client->name }}</option>
+                    <option value="{{ $client->id }}" @selected($selectedClient?->id === $client->id)>
+                        {{ $client->name }} — {{ $client->activeCategories->count() }} item(s) actif(s)
+                    </option>
                 @endforeach
             </select>
         </div>
@@ -108,7 +111,16 @@
             </div>
         @elseif(! $hasCategories)
             <div class="mt-4 border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">
-                Le client sélectionné n’a aucune catégorie active. Ajoute une catégorie au client avant d’entrer des montants.
+                @if($inactiveCategoryCount > 0)
+                    Le client sélectionné possède {{ $inactiveCategoryCount }} item(s) inactif(s), mais aucun item actif.
+                @else
+                    Le client sélectionné n’a aucun item enregistré.
+                @endif
+                @if(auth()->user()->isSuperAdmin() && $selectedClient)
+                    <a class="ml-2 underline" href="{{ route('clients.categories.index', $selectedClient) }}">
+                        Ouvrir le catalogue et activer les items
+                    </a>
+                @endif
             </div>
         @endif
         <table class="mt-4 w-full border-collapse text-sm">

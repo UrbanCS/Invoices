@@ -6,7 +6,30 @@
         <p class="label">Catalogue et tarifs</p>
         <h1 class="text-3xl font-extrabold text-villeneuve-forest">{{ $client->name }}</h1>
     </div>
-    <a class="btn btn-secondary" href="{{ route('clients.show', $client) }}">Retour au client</a>
+    <div class="flex flex-wrap gap-2">
+        @if($client->categories->where('is_active', false)->isNotEmpty())
+            <form method="post" action="{{ route('clients.categories.activate-all', $client) }}">
+                @csrf
+                <button class="btn btn-primary">Activer tous les items</button>
+            </form>
+        @endif
+        <a class="btn btn-secondary" href="{{ route('clients.show', $client) }}">Retour au client</a>
+    </div>
+</div>
+
+<div class="mt-6 grid gap-3 sm:grid-cols-3">
+    <div class="panel p-4">
+        <span class="label">Items enregistrés</span>
+        <strong class="mt-1 block text-2xl text-villeneuve-forest">{{ $client->categories->count() }}</strong>
+    </div>
+    <div class="panel p-4">
+        <span class="label">Items actifs</span>
+        <strong class="mt-1 block text-2xl text-emerald-700">{{ $client->categories->where('is_active', true)->count() }}</strong>
+    </div>
+    <div class="panel p-4">
+        <span class="label">Items inactifs</span>
+        <strong class="mt-1 block text-2xl text-amber-700">{{ $client->categories->where('is_active', false)->count() }}</strong>
+    </div>
 </div>
 
 <div class="mt-6 grid gap-6 xl:grid-cols-[1fr_360px]">

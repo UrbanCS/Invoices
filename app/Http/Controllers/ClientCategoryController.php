@@ -79,4 +79,18 @@ class ClientCategoryController extends Controller
 
         return back()->with('status', 'Item retiré du catalogue. Les anciennes commandes restent intactes.');
     }
+
+    public function activateAll(Client $client): RedirectResponse
+    {
+        $activated = $client->categories()
+            ->where('is_active', false)
+            ->update(['is_active' => true]);
+
+        return back()->with(
+            'status',
+            $activated > 0
+                ? "{$activated} item(s) réactivé(s). Ils sont maintenant disponibles dans les commandes et les factures."
+                : 'Tous les items du catalogue sont déjà actifs.',
+        );
+    }
 }
