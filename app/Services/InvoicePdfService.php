@@ -18,7 +18,10 @@ class InvoicePdfService
 
         $invoice->load(['client', 'entries', 'adjustments']);
         $settings = BusinessSetting::first();
-        $orientation = count($invoice->category_snapshot ?? []) > 2 ? 'landscape' : 'portrait';
+        $categoryCount = count($invoice->category_snapshot ?? []);
+        $orientation = $categoryCount > 8
+            ? 'portrait'
+            : ($categoryCount > 2 ? 'landscape' : 'portrait');
         $workPath = storage_path('app/dompdf');
 
         File::ensureDirectoryExists($workPath);

@@ -168,6 +168,22 @@ php artisan storage:link
 
 If symlinks are disabled, create `public_html/storage` manually and upload public storage files there when needed. Generated invoice PDFs are stored under `storage/app/public/invoices`; without symlinks, copy or upload that folder to `public_html/storage/invoices` after generation if direct public URLs are needed. Authenticated downloads still use Laravel storage responses.
 
+## Catalogues partagés et factures de test
+
+Après avoir téléversé une mise à jour dans `app_core`, exécuter:
+
+```bash
+php artisan optimize:clear
+php artisan app:apply-shared-catalogs --force
+php artisan view:cache
+```
+
+La commande copie le catalogue actif de `Holiday Inn Ottawa Dwtn - Parliament Hill` vers les hôtels configurés dans `config/shared_catalogs.php`. Elle applique aussi le catalogue commerces extrait de `price list store ottawa (002).docx` aux commerces configurés. Les taxes propres à chaque client et les anciennes factures sont conservées.
+
+L’administrateur peut également ouvrir `Clients > Catégories` pour copier manuellement le catalogue courant vers plusieurs clients ou appliquer le modèle commerces Ottawa. Les prix décrits comme une fourchette ou « et plus » dans le document source utilisent le prix de base indiqué.
+
+Pour retirer une facture créée uniquement pour un test, ouvrir `Factures`, puis cliquer sur `Supprimer`, ou ouvrir la facture et choisir `Supprimer définitivement`. Cette action est réservée au super administrateur. Elle supprime la facture, son PDF et ses pièces jointes, puis rend de nouveau facturables ses commandes et registres sources.
+
 ## Security Notes
 
 - Do not place `.env`, `app_core`, `vendor`, `storage/logs`, `database`, or source files in `public_html`.

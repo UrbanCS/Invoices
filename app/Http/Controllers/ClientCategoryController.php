@@ -4,16 +4,23 @@ namespace App\Http\Controllers;
 
 use App\Models\Client;
 use App\Models\ClientCategory;
+use App\Services\AuditLogService;
 use App\Services\MoneyFormatter;
+use App\Services\SharedCatalogService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class ClientCategoryController extends Controller
 {
     public function index(Client $client): View
     {
-        return view('clients.categories', ['client' => $client->load('categories')]);
+        return view('clients.categories', [
+            'client' => $client->load('categories'),
+            'catalogTargets' => Client::where('is_active', true)->orderBy('name')->get(['id', 'name']),
+        ]);
     }
 
     public function store(Request $request, Client $client, MoneyFormatter $money): RedirectResponse
@@ -92,5 +99,77 @@ class ClientCategoryController extends Controller
                 ? "{$activated} item(s) réactivé(s). Ils sont maintenant disponibles dans les commandes et les factures."
                 : 'Tous les items du catalogue sont déjà actifs.',
         );
+    }
+
+    public function copy(
+        Request $request,
+        Client $client,
+        SharedCatalogService $catalogs,
+        AuditLogService $audit,
+    ): RedirectResponse {
+        $targetIds = $this->targetIds($request)->reject(fn (int $id) => $id === $client->id);
+
+        if ($targetIds->isEmpty()) {
+            throw ValidationException::withMessages([
+                'target_client_ids' => 'Choisis au moins un autre client.',
+            ]);
+        }
+
+        $sourceItemCount = $client->categories()->where('is_active', true)->count();
+        if ($sourceItemCount === 0) {
+            throw ValidationException::withMessages([
+                'target_client_ids' => 'Le catalogue source ne contient aucun item actif.',
+            ]);
+        }
+
+        $targets = Client::whereIn('id', $targetIds)->where('is_active', true)->get();
+        foreach ($targets as $target) {
+            $copied = $catalogs->copyActiveCatalog($client, $target);
+            $audit->record(
+                'client.catalog_copied',
+                $target,
+                ['source_client_id' => $client->id],
+                ['source_client_id' => $client->id, 'active_items' => $copied],
+            );
+        }
+
+        return back()->with(
+            'status',
+            "{$sourceItemCount} item(s) copié(s) vers {$targets->count()} client(s).",
+        );
+    }
+
+    public function applyStoreTemplate(
+        Request $request,
+        Client $client,
+        SharedCatalogService $catalogs,
+        AuditLogService $audit,
+    ): RedirectResponse {
+        $targetIds = $this->targetIds($request);
+        $targets = Client::whereIn('id', $targetIds)->where('is_active', true)->get();
+
+        foreach ($targets as $target) {
+            $applied = $catalogs->applyStoreOttawaCatalog($target);
+            $audit->record(
+                'client.store_catalog_applied',
+                $target,
+                ['template' => 'store_ottawa'],
+                ['template' => 'store_ottawa', 'active_items' => $applied],
+            );
+        }
+
+        return redirect()
+            ->route('clients.categories.index', $client)
+            ->with('status', "Catalogue commerces Ottawa appliqué à {$targets->count()} client(s).");
+    }
+
+    private function targetIds(Request $request): Collection
+    {
+        $data = $request->validate([
+            'target_client_ids' => ['required', 'array', 'min:1'],
+            'target_client_ids.*' => ['required', 'integer', 'distinct', 'exists:clients,id'],
+        ]);
+
+        return collect($data['target_client_ids'])->map(fn ($id) => (int) $id)->unique()->values();
     }
 }

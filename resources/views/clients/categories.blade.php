@@ -32,6 +32,40 @@
     </div>
 </div>
 
+<div class="mt-6 grid gap-6 lg:grid-cols-2">
+    <form class="panel p-5" method="post" action="{{ route('clients.categories.copy', $client) }}">
+        @csrf
+        <h2 class="text-xl font-bold text-villeneuve-forest">Copier ce catalogue</h2>
+        <p class="mt-1 text-sm text-stone-600">
+            Les items actifs et leurs prix seront copiés. Les anciens items des clients ciblés seront désactivés, sans modifier leurs anciennes factures.
+        </p>
+        <label class="label mt-4" for="copy_target_client_ids">Clients ciblés</label>
+        <select id="copy_target_client_ids" class="mt-1 min-h-44 w-full" name="target_client_ids[]" multiple required>
+            @foreach($catalogTargets->where('id', '!=', $client->id) as $target)
+                <option value="{{ $target->id }}">{{ $target->name }}</option>
+            @endforeach
+        </select>
+        <p class="mt-1 text-xs text-stone-500">Maintiens Ctrl (Windows) ou Cmd (Mac) pour sélectionner plusieurs clients.</p>
+        <button class="btn btn-primary mt-4">Copier vers les clients sélectionnés</button>
+    </form>
+
+    <form class="panel p-5" method="post" action="{{ route('clients.categories.apply-store-template', $client) }}">
+        @csrf
+        <h2 class="text-xl font-bold text-villeneuve-forest">Modèle commerces Ottawa</h2>
+        <p class="mt-1 text-sm text-stone-600">
+            Applique la liste complète du document Word « price list store ottawa », incluant les prix fixes et les prix de base.
+        </p>
+        <label class="label mt-4" for="store_target_client_ids">Commerces ciblés</label>
+        <select id="store_target_client_ids" class="mt-1 min-h-44 w-full" name="target_client_ids[]" multiple required>
+            @foreach($catalogTargets as $target)
+                <option value="{{ $target->id }}">{{ $target->name }}</option>
+            @endforeach
+        </select>
+        <p class="mt-1 text-xs text-stone-500">Le profil de taxes de chaque commerce est conservé.</p>
+        <button class="btn btn-primary mt-4">Appliquer le modèle aux commerces</button>
+    </form>
+</div>
+
 <div class="mt-6 grid gap-6 xl:grid-cols-[1fr_360px]">
     <section class="panel overflow-x-auto">
         <div class="border-b border-villeneuve-line p-5">

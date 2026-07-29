@@ -120,6 +120,9 @@
             <th>Mois</th>
             <th>Statut</th>
             <th class="text-right">Grand total</th>
+            @if(auth()->user()->isSuperAdmin())
+                <th class="text-right">Actions</th>
+            @endif
         </tr>
         @forelse($invoices as $invoice)
             <tr>
@@ -128,10 +131,23 @@
                 <td>{{ $invoice->invoice_month }}/{{ $invoice->invoice_year }}</td>
                 <td>{{ $statuses[$invoice->status] ?? $invoice->status }}</td>
                 <td class="text-right">{{ $money->format($invoice->grand_total_cents, $invoice->client?->default_language ?? 'fr') }}</td>
+                @if(auth()->user()->isSuperAdmin())
+                    <td class="text-right">
+                        <form
+                            method="post"
+                            action="{{ route('monthly-invoices.destroy', $invoice) }}"
+                            onsubmit="return confirm('Supprimer définitivement la facture {{ $invoice->invoice_number }}? Les commandes liées redeviendront disponibles pour la facturation.');"
+                        >
+                            @csrf
+                            @method('delete')
+                            <button class="btn btn-secondary text-red-700">Supprimer</button>
+                        </form>
+                    </td>
+                @endif
             </tr>
         @empty
             <tr>
-                <td colspan="5" class="py-6 text-center text-stone-500">Aucune facture trouvée.</td>
+                <td colspan="{{ auth()->user()->isSuperAdmin() ? 6 : 5 }}" class="py-6 text-center text-stone-500">Aucune facture trouvée.</td>
             </tr>
         @endforelse
     </table>

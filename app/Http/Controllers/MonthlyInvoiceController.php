@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\BusinessSetting;
 use App\Models\CleaningOrder;
 use App\Models\Client;
+use App\Models\DailyRecord;
 use App\Models\MonthlyInvoice;
 use App\Models\UploadedDocument;
 use App\Services\AuditLogService;
@@ -18,6 +19,7 @@ use App\Services\MoneyFormatter;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
@@ -260,6 +262,56 @@ class MonthlyInvoiceController extends Controller
         $this->authorizeInvoice($invoice, true);
         $invoice->update(['status' => 'cancelled']);
         return back()->with('status', 'Facture annulée.');
+    }
+
+    public function destroy(MonthlyInvoice $invoice, AuditLogService $audit): RedirectResponse
+    {
+        abort_unless(Auth::user()->isSuperAdmin(), 403);
+        $this->authorizeInvoice($invoice, true);
+
+        $invoice->load(['dailyRecords:id', 'documents:id,monthly_invoice_id,file_path']);
+        $dailyRecordIds = $invoice->dailyRecords->pluck('id');
+        $storedPaths = $invoice->documents
+            ->pluck('file_path')
+            ->when($invoice->pdf_path, fn ($paths) => $paths->push($invoice->pdf_path))
+            ->filter()
+            ->unique()
+            ->values();
+        $before = $invoice->toArray();
+
+        DB::transaction(function () use ($invoice, $dailyRecordIds, $before, $audit) {
+            if ($dailyRecordIds->isNotEmpty()) {
+                $recordsUsedByAnotherInvoice = DB::table('monthly_invoice_daily_record')
+                    ->whereIn('daily_record_id', $dailyRecordIds)
+                    ->where('monthly_invoice_id', '!=', $invoice->id)
+                    ->pluck('daily_record_id');
+
+                DailyRecord::whereIn('id', $dailyRecordIds->diff($recordsUsedByAnotherInvoice))
+                    ->where('status', 'invoiced')
+                    ->update(['status' => 'reviewed']);
+            }
+
+            CleaningOrder::where('monthly_invoice_id', $invoice->id)->update([
+                'status' => 'reviewed',
+                'monthly_invoice_id' => null,
+            ]);
+
+            $audit->record(
+                'monthly_invoice.deleted',
+                $invoice,
+                $before,
+                ['deleted' => true],
+            );
+            $invoice->delete();
+        });
+
+        if ($storedPaths->isNotEmpty()) {
+            Storage::disk('public')->delete($storedPaths->all());
+        }
+
+        return redirect()
+            ->route('monthly-invoices.index')
+            ->with('status', 'Facture supprimée définitivement. Les commandes liées peuvent être refacturées.');
     }
 
     public function export(MonthlyInvoice $invoice, CsvExportService $csv)

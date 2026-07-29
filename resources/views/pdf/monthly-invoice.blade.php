@@ -16,6 +16,10 @@
         .logo { max-height: 48px; max-width: 110px; }
         .client-box { margin-bottom: 14px; }
         .invoice-table td { height: 17px; }
+        .itemized-heading { color: #0f3f2f; font-size: 14px; font-weight: bold; margin: 14px 0 7px; }
+        .itemized-table { table-layout: fixed; }
+        .itemized-table th, .itemized-table td { padding: 6px 5px; }
+        .itemized-table tr { page-break-inside: avoid; }
         .totals { margin-left: auto; margin-top: 14px; width: 42%; }
         .grand td { color: #0f3f2f; font-size: 13px; font-weight: bold; }
         .footer { border-top: 2px solid #0f3f2f; font-weight: bold; margin-top: 18px; padding-top: 9px; text-align: center; }
@@ -34,11 +38,46 @@
     $invoiceLanguage = $client?->default_language ?? 'fr';
     $categories = collect($invoice->category_snapshot ?? []);
     $singleCategory = $categories->count() === 1;
+    $useItemizedLayout = $categories->count() > 8;
     $businessLogo = $settings?->logo_path ? public_path('storage/'.$settings->logo_path) : null;
     $clientLogo = $client?->logo_path ? public_path('storage/'.$client->logo_path) : null;
+    $categoriesById = $categories->keyBy(fn ($category) => (string) ($category['id'] ?? ''));
     $entryTotals = $invoice->entries
         ->groupBy(fn ($entry) => $entry->service_day.'-'.($entry->client_category_id ?? 'none'))
         ->map(fn ($entries) => $entries->sum('amount_cents'));
+    $lineItems = $invoice->entries
+        ->sortBy(fn ($entry) => sprintf('%02d-%08d', $entry->service_day, $entry->id))
+        ->flatMap(function ($entry) use ($categoriesById) {
+            $category = $categoriesById->get((string) $entry->client_category_id, []);
+            $serviceLabel = isset($category['service_type'])
+                ? App\Models\ClientCategory::serviceLabel($category['service_type'])
+                : null;
+            $audienceLabel = isset($category['audience'])
+                ? App\Models\ClientCategory::audienceLabel($category['audience'])
+                : null;
+            $details = collect($entry->item_details ?? []);
+
+            if ($details->isEmpty()) {
+                return $entry->amount_cents > 0 ? [[
+                    'day' => $entry->service_day,
+                    'service' => collect([$serviceLabel, $audienceLabel])->filter()->join(' · '),
+                    'label' => $category['name'] ?? $entry->category_name_snapshot,
+                    'quantity' => null,
+                    'unit_price_cents' => null,
+                    'total_cents' => $entry->amount_cents,
+                ]] : [];
+            }
+
+            return $details->map(fn ($detail) => [
+                'day' => $entry->service_day,
+                'service' => collect([$serviceLabel, $audienceLabel])->filter()->join(' · '),
+                'label' => $detail['label'] ?? $category['name'] ?? $entry->category_name_snapshot,
+                'quantity' => $detail['quantity'] ?? null,
+                'unit_price_cents' => $detail['unit_price_cents'] ?? null,
+                'total_cents' => $detail['total_cents'] ?? 0,
+            ])->all();
+        })
+        ->values();
 @endphp
 
 <div class="header">
@@ -92,54 +131,94 @@
     </tr>
 </table>
 
-<table class="invoice-table">
-    <thead>
-        <tr>
-            <th style="width: 50px;">Jour</th>
-            @foreach($categories as $category)
-                <th class="right">
-                    @if(! $singleCategory && isset($category['service_type'], $category['audience']))
-                        <span class="muted" style="display: block; font-size: 7px; font-weight: normal;">
-                            {{ App\Models\ClientCategory::serviceLabel($category['service_type']) }}
-                            · {{ App\Models\ClientCategory::audienceLabel($category['audience']) }}
-                        </span>
-                    @endif
-                    {{ $singleCategory ? 'Montant' : ($category['name'] ?? 'Montant') }}
-                </th>
-            @endforeach
-        </tr>
-    </thead>
-    <tbody>
-        @for($day = 1; $day <= 31; $day++)
+@if($useItemizedLayout)
+    <div class="itemized-heading">Détail des items facturés</div>
+    <table class="itemized-table">
+        <thead>
             <tr>
-                <td><strong>{{ $day }}</strong></td>
-                @foreach($categories as $category)
-                    @php
-                        $categoryId = $category['id'] ?? 'none';
-                        $sum = $entryTotals->get($day.'-'.$categoryId, 0);
-                        $cellEntries = $invoice->entries
-                            ->where('service_day', $day)
-                            ->where('client_category_id', $categoryId === 'none' ? null : $categoryId);
-                    @endphp
+                <th style="width: 34px;">Jour</th>
+                <th style="width: 140px;">Service / section</th>
+                <th>Item</th>
+                <th class="right" style="width: 45px;">Qté</th>
+                <th class="right" style="width: 72px;">Prix unit.</th>
+                <th class="right" style="width: 72px;">Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            @forelse($lineItems as $lineItem)
+                <tr>
+                    <td><strong>{{ $lineItem['day'] }}</strong></td>
+                    <td class="muted" style="font-size: 8px;">{{ $lineItem['service'] ?: '—' }}</td>
+                    <td><strong>{{ $lineItem['label'] }}</strong></td>
                     <td class="right">
-                        @if($sum)
-                            <strong>{{ $money->format($sum, $invoiceLanguage) }}</strong>
+                        @if($lineItem['quantity'] !== null)
+                            {{ rtrim(rtrim(number_format((float) $lineItem['quantity'], 2, ',', ' '), '0'), ',') }}
+                        @else
+                            —
                         @endif
-                        @foreach($cellEntries as $entry)
-                            @foreach($entry->item_details ?? [] as $detail)
-                                <div class="muted" style="font-size: 8px; margin-top: 2px;">
-                                    Qté {{ $detail['quantity'] ?? '' }}
-                                    × Prix unit. {{ $money->format($detail['unit_price_cents'] ?? 0, $invoiceLanguage) }}
-                                    = {{ $money->format($detail['total_cents'] ?? 0, $invoiceLanguage) }}
-                                </div>
-                            @endforeach
-                        @endforeach
                     </td>
+                    <td class="right">
+                        {{ $lineItem['unit_price_cents'] !== null ? $money->format($lineItem['unit_price_cents'], $invoiceLanguage) : '—' }}
+                    </td>
+                    <td class="right"><strong>{{ $money->format($lineItem['total_cents'], $invoiceLanguage) }}</strong></td>
+                </tr>
+            @empty
+                <tr>
+                    <td colspan="6" style="padding: 18px; text-align: center;">Aucun item facturé.</td>
+                </tr>
+            @endforelse
+        </tbody>
+    </table>
+@else
+    <table class="invoice-table">
+        <thead>
+            <tr>
+                <th style="width: 50px;">Jour</th>
+                @foreach($categories as $category)
+                    <th class="right">
+                        @if(! $singleCategory && isset($category['service_type'], $category['audience']))
+                            <span class="muted" style="display: block; font-size: 7px; font-weight: normal;">
+                                {{ App\Models\ClientCategory::serviceLabel($category['service_type']) }}
+                                · {{ App\Models\ClientCategory::audienceLabel($category['audience']) }}
+                            </span>
+                        @endif
+                        {{ $singleCategory ? 'Montant' : ($category['name'] ?? 'Montant') }}
+                    </th>
                 @endforeach
             </tr>
-        @endfor
-    </tbody>
-</table>
+        </thead>
+        <tbody>
+            @for($day = 1; $day <= 31; $day++)
+                <tr>
+                    <td><strong>{{ $day }}</strong></td>
+                    @foreach($categories as $category)
+                        @php
+                            $categoryId = $category['id'] ?? 'none';
+                            $sum = $entryTotals->get($day.'-'.$categoryId, 0);
+                            $cellEntries = $invoice->entries
+                                ->where('service_day', $day)
+                                ->where('client_category_id', $categoryId === 'none' ? null : $categoryId);
+                        @endphp
+                        <td class="right">
+                            @if($sum)
+                                <strong>{{ $money->format($sum, $invoiceLanguage) }}</strong>
+                            @endif
+                            @foreach($cellEntries as $entry)
+                                @foreach($entry->item_details ?? [] as $detail)
+                                    <div class="muted" style="font-size: 8px; margin-top: 2px;">
+                                        Qté {{ $detail['quantity'] ?? '' }}
+                                        × Prix unit. {{ $money->format($detail['unit_price_cents'] ?? 0, $invoiceLanguage) }}
+                                        = {{ $money->format($detail['total_cents'] ?? 0, $invoiceLanguage) }}
+                                    </div>
+                                @endforeach
+                            @endforeach
+                        </td>
+                    @endforeach
+                </tr>
+            @endfor
+        </tbody>
+    </table>
+@endif
 
 <table class="totals">
     <tr>

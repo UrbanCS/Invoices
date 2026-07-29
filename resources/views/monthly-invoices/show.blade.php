@@ -183,6 +183,17 @@
             <form method="post" action="{{ route('monthly-invoices.mark-paid', $invoice) }}">@csrf<button class="btn btn-secondary w-full">Marquer payée</button></form>
             <form method="post" action="{{ route('monthly-invoices.cancel', $invoice) }}">@csrf<button class="btn btn-secondary w-full">Annuler</button></form>
             <a class="btn btn-secondary w-full" href="{{ route('monthly-invoices.export', $invoice) }}">Exporter CSV</a>
+            @if(auth()->user()->isSuperAdmin())
+                <form
+                    method="post"
+                    action="{{ route('monthly-invoices.destroy', $invoice) }}"
+                    onsubmit="return confirm('Supprimer définitivement cette facture? Son PDF et ses paiements seront supprimés. Les commandes liées redeviendront disponibles pour la facturation.');"
+                >
+                    @csrf
+                    @method('delete')
+                    <button class="btn btn-secondary w-full border-red-300 text-red-700">Supprimer définitivement</button>
+                </form>
+            @endif
         </div>
 
         <form class="mt-6 border-t pt-4" method="post" enctype="multipart/form-data" action="{{ route('monthly-invoices.attachments', $invoice) }}">

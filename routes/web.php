@@ -55,10 +55,13 @@ Route::middleware(['auth', 'role:super_admin,employee'])->group(function () {
 });
 
 Route::middleware(['auth', 'role:super_admin'])->group(function () {
+    Route::delete('/monthly-invoices/{invoice}', [MonthlyInvoiceController::class, 'destroy'])->name('monthly-invoices.destroy');
     Route::resource('clients', ClientController::class);
     Route::get('/clients/{client}/categories', [ClientCategoryController::class, 'index'])->name('clients.categories.index');
     Route::post('/clients/{client}/categories', [ClientCategoryController::class, 'store'])->name('clients.categories.store');
     Route::post('/clients/{client}/categories/activate-all', [ClientCategoryController::class, 'activateAll'])->name('clients.categories.activate-all');
+    Route::post('/clients/{client}/categories/copy', [ClientCategoryController::class, 'copy'])->name('clients.categories.copy');
+    Route::post('/clients/{client}/categories/apply-store-template', [ClientCategoryController::class, 'applyStoreTemplate'])->name('clients.categories.apply-store-template');
     Route::put('/clients/{client}/categories/{category}', [ClientCategoryController::class, 'update'])->name('clients.categories.update');
     Route::delete('/clients/{client}/categories/{category}', [ClientCategoryController::class, 'destroy'])->name('clients.categories.destroy');
     Route::get('/settings/business', [BusinessSettingController::class, 'edit'])->name('settings.business.edit');

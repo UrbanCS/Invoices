@@ -1,5 +1,17 @@
 # cPanel / DirectAdmin / RapideNET Deployment
 
+## Mise à jour des catalogues partagés
+
+Après avoir téléversé les fichiers privés modifiés dans `app_core`, lancer depuis ce dossier:
+
+```bash
+php artisan optimize:clear
+php artisan app:apply-shared-catalogs --force
+php artisan view:cache
+```
+
+Cette commande copie le catalogue actif Holiday Inn vers les hôtels configurés et applique le modèle commerces Ottawa. Elle conserve les profils de taxes propres à chaque client. Régénérer ensuite les PDF concernés pour obtenir la présentation compacte des grands catalogues.
+
 This app is designed for two hosting layouts.
 
 ## Mode 1: Document Root Points To Laravel `public`
