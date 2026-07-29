@@ -7,6 +7,7 @@ use App\Models\CleaningOrder;
 use App\Models\Client;
 use App\Models\MonthlyInvoice;
 use App\Services\AuditLogService;
+use App\Services\InvoiceApprovalService;
 use App\Services\InvoiceCalculationService;
 use App\Services\InvoiceNumberService;
 use App\Services\MoneyFormatter;
@@ -54,7 +55,13 @@ class AccountStatementController extends Controller
         ]);
     }
 
-    public function createInvoice(Request $request, InvoiceNumberService $numbers, InvoiceCalculationService $calculator, AuditLogService $audit): RedirectResponse
+    public function createInvoice(
+        Request $request,
+        InvoiceNumberService $numbers,
+        InvoiceCalculationService $calculator,
+        AuditLogService $audit,
+        InvoiceApprovalService $approval,
+    ): RedirectResponse
     {
         abort_unless(Auth::user()->canManage(), 403);
 
@@ -162,8 +169,17 @@ class AccountStatementController extends Controller
 
         $audit->record('monthly_invoice.created_from_account_statement', $invoice);
 
+        if (Auth::user()->isSuperAdmin()) {
+            $approval->approve($invoice);
+        }
+
         return redirect()->route('monthly-invoices.show', $invoice)
-            ->with('status', 'Facture mensuelle créée à partir des commandes approuvées.');
+            ->with(
+                'status',
+                Auth::user()->isSuperAdmin()
+                    ? 'Facture mensuelle créée et approuvée automatiquement.'
+                    : 'Brouillon mensuel créé à partir des commandes approuvées.',
+            );
     }
 
     public function adjustment(Request $request, CleaningOrder $order, MoneyFormatter $money): RedirectResponse

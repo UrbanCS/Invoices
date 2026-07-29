@@ -238,6 +238,135 @@ class CleaningOrderInvoiceWorkflowTest extends TestCase
         ]);
     }
 
+    public function test_invoice_form_loads_items_for_the_explicitly_selected_client(): void
+    {
+        $admin = User::create([
+            'name' => 'Admin',
+            'email' => 'admin-invoice-catalog@test.com',
+            'password' => 'password',
+            'role' => 'super_admin',
+        ]);
+        Client::create([
+            'name' => 'Client sans catalogue',
+            'tax_profile' => 'on_hst',
+            'default_language' => 'fr',
+        ]);
+        $holidayInn = Client::create([
+            'name' => 'Holiday Inn Ottawa Downtown',
+            'tax_profile' => 'on_hst',
+            'default_language' => 'fr',
+        ]);
+        ClientCategory::create([
+            'client_id' => $holidayInn->id,
+            'name' => 'Chemise / Shirt',
+            'service_type' => 'laundry',
+            'audience' => 'gentlemen',
+            'default_price_cents' => 890,
+            'is_taxable' => true,
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('monthly-invoices.create', ['client_id' => $holidayInn->id]))
+            ->assertOk()
+            ->assertSee('data-rendered-client-id="'.$holidayInn->id.'"', false)
+            ->assertSee('Catalogue chargé : 1 item(s) actif(s).')
+            ->assertSee('Chemise / Shirt')
+            ->assertDontSee('Le client sélectionné n’a aucun item enregistré.');
+    }
+
+    public function test_invoice_form_collapses_a_large_catalog_into_an_item_summary(): void
+    {
+        $admin = User::create([
+            'name' => 'Admin',
+            'email' => 'admin-large-catalog@test.com',
+            'password' => 'password',
+            'role' => 'super_admin',
+        ]);
+        $client = Client::create([
+            'name' => 'Holiday Inn Ottawa Downtown',
+            'tax_profile' => 'on_hst',
+            'default_language' => 'fr',
+        ]);
+
+        foreach (range(1, 9) as $position) {
+            ClientCategory::create([
+                'client_id' => $client->id,
+                'name' => 'Item '.$position,
+                'service_type' => 'dry_cleaning',
+                'audience' => 'unisex',
+                'sort_order' => $position,
+                'default_price_cents' => 500 + $position,
+                'is_taxable' => true,
+                'is_active' => true,
+            ]);
+        }
+
+        $this->actingAs($admin)
+            ->get(route('monthly-invoices.create', ['client_id' => $client->id]))
+            ->assertOk()
+            ->assertSee('Items ajoutés à la facture')
+            ->assertSee('Aucun item ajouté pour l’instant.')
+            ->assertSee('Afficher la grille mensuelle détaillée (9 items)');
+    }
+
+    public function test_saved_invoice_uses_a_readable_summary_for_a_large_catalog(): void
+    {
+        $admin = User::create([
+            'name' => 'Admin',
+            'email' => 'admin-saved-invoice-summary@test.com',
+            'password' => 'password',
+            'role' => 'super_admin',
+        ]);
+        $client = Client::create([
+            'name' => 'Holiday Inn Ottawa Downtown',
+            'tax_profile' => 'on_hst',
+            'default_language' => 'fr',
+        ]);
+        $categories = collect(range(1, 9))->map(fn ($position) => [
+            'id' => $position,
+            'name' => 'Item '.$position,
+            'service_type' => 'dry_cleaning',
+            'audience' => 'unisex',
+            'is_taxable' => true,
+        ])->all();
+        $invoice = MonthlyInvoice::create([
+            'client_id' => $client->id,
+            'invoice_number' => 'TEST-SUMMARY-0726',
+            'invoice_month' => 7,
+            'invoice_year' => 2026,
+            'invoice_date' => '2026-07-28',
+            'status' => 'draft',
+            'source_mode' => 'manual_grid',
+            'subtotal_cents' => 2590,
+            'grand_total_cents' => 2590,
+            'category_snapshot' => $categories,
+            'created_by' => $admin->id,
+        ]);
+        $invoice->entries()->create([
+            'service_day' => 1,
+            'client_category_id' => null,
+            'category_name_snapshot' => 'Item 1',
+            'amount_cents' => 2590,
+            'item_details' => [[
+                'label' => 'Suit 2 pc / Complet 2 pc',
+                'quantity' => 2,
+                'unit_price_cents' => 1295,
+                'total_cents' => 2590,
+            ]],
+            'source_type' => 'manual_monthly_grid',
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('monthly-invoices.show', $invoice))
+            ->assertOk()
+            ->assertSee('Détail des items facturés')
+            ->assertSee('Suit 2 pc / Complet 2 pc')
+            ->assertSee('12,95 $')
+            ->assertSee('25,90 $')
+            ->assertSee('Afficher la grille mensuelle détaillée (9 items)');
+    }
+
     public function test_client_cannot_correct_an_order_after_it_is_approved(): void
     {
         $client = Client::create([
@@ -322,6 +451,7 @@ class CleaningOrderInvoiceWorkflowTest extends TestCase
         $order->refresh();
         $this->assertSame('invoiced', $order->status);
         $this->assertSame($invoice->id, $order->monthly_invoice_id);
+        $this->assertSame('approved', $invoice->status);
         $this->assertSame(5075, $invoice->subtotal_cents);
         $this->assertSame(660, $invoice->tax_cents);
         $this->assertSame(5735, $invoice->grand_total_cents);
@@ -415,6 +545,7 @@ class CleaningOrderInvoiceWorkflowTest extends TestCase
         $invoice = MonthlyInvoice::with('entries')->firstOrFail();
         $response->assertRedirect(route('monthly-invoices.show', $invoice));
 
+        $this->assertSame('approved', $invoice->status);
         $this->assertSame(6525, $invoice->subtotal_cents);
         $this->assertSame(848, $invoice->tax_cents);
         $this->assertSame(7373, $invoice->grand_total_cents);

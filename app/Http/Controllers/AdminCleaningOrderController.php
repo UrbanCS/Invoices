@@ -6,6 +6,7 @@ use App\Models\BusinessSetting;
 use App\Models\CleaningOrder;
 use App\Models\MonthlyInvoice;
 use App\Services\AuditLogService;
+use App\Services\InvoiceApprovalService;
 use App\Services\InvoiceCalculationService;
 use App\Services\InvoiceNumberService;
 use Illuminate\Http\RedirectResponse;
@@ -33,6 +34,7 @@ class AdminCleaningOrderController extends Controller
         InvoiceNumberService $numbers,
         InvoiceCalculationService $calculator,
         AuditLogService $audit,
+        InvoiceApprovalService $approval,
     ): RedirectResponse {
         abort_unless(Auth::user()->canManage(), 403);
 
@@ -125,7 +127,16 @@ class AdminCleaningOrderController extends Controller
 
         $audit->record('monthly_invoice.created_from_cleaning_order', $invoice);
 
+        if (Auth::user()->isSuperAdmin()) {
+            $approval->approve($invoice);
+        }
+
         return redirect()->route('monthly-invoices.show', $invoice)
-            ->with('status', 'Brouillon de facture créé à partir de la commande.');
+            ->with(
+                'status',
+                Auth::user()->isSuperAdmin()
+                    ? 'Facture créée et approuvée automatiquement à partir de la commande.'
+                    : 'Brouillon de facture créé à partir de la commande.',
+            );
     }
 }

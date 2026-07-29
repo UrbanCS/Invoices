@@ -2,10 +2,11 @@
 
 @section('content')
 @php
-    $selectedClient = $clients->firstWhere('id', (int) old('client_id', $invoice->client_id)) ?? $clients->first();
-    $hasCategories = (bool) $selectedClient?->activeCategories->isNotEmpty();
-    $singleCategory = $selectedClient?->activeCategories->count() === 1;
+    $hasCategories = $selectedCategories->isNotEmpty();
+    $singleCategory = $selectedCategories->count() === 1;
+    $useCompactGrid = $selectedCategories->count() > 8;
     $inactiveCategoryCount = $selectedClient?->categories->where('is_active', false)->count() ?? 0;
+    $willAutoApprove = ! $invoice->exists && auth()->user()->isSuperAdmin();
 @endphp
 
 <div class="flex flex-wrap items-center justify-between gap-4">
@@ -27,10 +28,10 @@
             <select
                 class="mt-1 w-full"
                 name="client_id"
+                autocomplete="off"
+                data-client-selector
+                data-rendered-client-id="{{ $selectedClient?->id }}"
                 required
-                @if(! $invoice->exists)
-                    onchange="const url = new URL(window.location.href); url.searchParams.set('client_id', this.value); url.searchParams.set('month', document.querySelector('[name=invoice_month]').value || '{{ $invoice->invoice_month }}'); url.searchParams.set('year', document.querySelector('[name=invoice_year]').value || '{{ $invoice->invoice_year }}'); window.location.href = url.toString();"
-                @endif
             >
                 @if($clients->isEmpty())
                     <option value="">Aucun client actif</option>
@@ -41,6 +42,11 @@
                     </option>
                 @endforeach
             </select>
+            @if($selectedClient)
+                <p class="mt-1 text-xs font-semibold {{ $hasCategories ? 'text-emerald-700' : 'text-amber-700' }}">
+                    Catalogue chargé : {{ $selectedCategories->count() }} item(s) actif(s).
+                </p>
+            @endif
         </div>
         <div><label class="label">No de facture</label><input class="mt-1 w-full" name="invoice_number" value="{{ old('invoice_number', $invoice->invoice_number) }}" required></div>
         <div><label class="label">Mois</label><input class="mt-1 w-full" type="number" min="1" max="12" name="invoice_month" value="{{ old('invoice_month', $invoice->invoice_month) }}" required></div>
@@ -64,7 +70,9 @@
                     Choisis un jour, un item et une quantité. Le prix fixe du catalogue et le total seront appliqués automatiquement.
                 </p>
             </div>
-            <button type="button" class="btn btn-secondary" data-item-add>Ajouter à la grille</button>
+            <button type="button" class="btn btn-secondary" data-item-add>
+                {{ $useCompactGrid ? 'Ajouter à la facture' : 'Ajouter à la grille' }}
+            </button>
         </div>
         <div class="mt-4 grid gap-3 md:grid-cols-5" data-item-calculator>
             <div>
@@ -74,7 +82,7 @@
             <div>
                 <label class="label">Item</label>
                 <select class="mt-1 w-full" data-item-category>
-                    @foreach(($selectedClient?->activeCategories ?? collect())->groupBy('service_type') as $serviceType => $serviceCategories)
+                    @foreach($selectedCategories->groupBy('service_type') as $serviceType => $serviceCategories)
                         @foreach($serviceCategories->groupBy('audience') as $audience => $audienceCategories)
                             <optgroup label="{{ App\Models\ClientCategory::serviceLabel($serviceType) }} · {{ App\Models\ClientCategory::audienceLabel($audience) }}">
                                 @foreach($audienceCategories as $category)
@@ -104,7 +112,19 @@
     </section>
 
     <section class="panel overflow-x-auto p-6">
-        <h2 class="text-xl font-bold text-villeneuve-forest">Grille mensuelle</h2>
+        <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+                <h2 class="text-xl font-bold text-villeneuve-forest">
+                    {{ $useCompactGrid ? 'Items ajoutés à la facture' : 'Grille mensuelle' }}
+                </h2>
+                @if($useCompactGrid)
+                    <p class="mt-1 text-sm text-stone-600">
+                        Le catalogue contient {{ $selectedCategories->count() }} items. Utilise le calculateur ci-dessus;
+                        chaque ajout apparaîtra dans ce résumé.
+                    </p>
+                @endif
+            </div>
+        </div>
         @if($clients->isEmpty())
             <div class="mt-4 border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">
                 Aucun client actif pour l’instant. Ajoute d’abord un client, puis reviens créer la facture.
@@ -123,11 +143,67 @@
                 @endif
             </div>
         @endif
+
+        @if($useCompactGrid)
+            <div class="mt-4 border border-villeneuve-line" data-added-items-summary>
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr>
+                            <th class="bg-villeneuve-mint p-3 text-left">Jour</th>
+                            <th class="bg-villeneuve-mint p-3 text-left">Item</th>
+                            <th class="bg-villeneuve-mint p-3 text-right">Quantité</th>
+                            <th class="bg-villeneuve-mint p-3 text-right">Prix unitaire</th>
+                            <th class="bg-villeneuve-mint p-3 text-right">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody data-added-items-body>
+                        @foreach($entries->sortBy('service_day') as $entry)
+                            @php($entryCategory = $selectedCategories->firstWhere('id', $entry->client_category_id))
+                            @if(collect($entry->item_details)->isNotEmpty())
+                                @foreach($entry->item_details as $detail)
+                                    <tr class="border-t border-villeneuve-line">
+                                        <td class="p-3 font-bold">{{ $entry->service_day }}</td>
+                                        <td class="p-3">{{ $detail['label'] ?? $entryCategory?->name ?? 'Item' }}</td>
+                                        <td class="p-3 text-right">{{ $detail['quantity'] ?? '—' }}</td>
+                                        <td class="p-3 text-right">{{ number_format(($detail['unit_price_cents'] ?? 0) / 100, 2, ',', ' ') }} $</td>
+                                        <td class="p-3 text-right font-bold">{{ number_format(($detail['total_cents'] ?? 0) / 100, 2, ',', ' ') }} $</td>
+                                    </tr>
+                                @endforeach
+                            @elseif($entry->amount_cents > 0)
+                                <tr class="border-t border-villeneuve-line">
+                                    <td class="p-3 font-bold">{{ $entry->service_day }}</td>
+                                    <td class="p-3">{{ $entryCategory?->name ?? $entry->category_name_snapshot }}</td>
+                                    <td class="p-3 text-right">—</td>
+                                    <td class="p-3 text-right">—</td>
+                                    <td class="p-3 text-right font-bold">{{ number_format($entry->amount_cents / 100, 2, ',', ' ') }} $</td>
+                                </tr>
+                            @endif
+                        @endforeach
+                    </tbody>
+                </table>
+                <p
+                    class="p-4 text-center text-sm text-stone-500"
+                    data-added-items-empty
+                    @if($entries->where('amount_cents', '>', 0)->isNotEmpty()) hidden @endif
+                >
+                    Aucun item ajouté pour l’instant.
+                </p>
+            </div>
+
+            <details class="mt-4 border border-villeneuve-line p-4">
+                <summary class="cursor-pointer font-bold text-villeneuve-forest">
+                    Afficher la grille mensuelle détaillée ({{ $selectedCategories->count() }} items)
+                </summary>
+                <p class="mt-2 text-sm text-stone-600">
+                    Cette grille sert uniquement aux corrections manuelles avancées.
+                </p>
+        @endif
+
         <table class="mt-4 w-full border-collapse text-sm">
             <thead>
                 <tr>
                     <th class="border bg-villeneuve-mint p-2">Jour</th>
-                    @foreach($selectedClient?->activeCategories ?? [] as $category)
+                    @foreach($selectedCategories as $category)
                         <th class="border bg-villeneuve-mint p-2 text-right">
                             @unless($singleCategory)
                                 <span class="block text-[10px] font-semibold text-stone-500">
@@ -144,7 +220,7 @@
                 @for($day = 1; $day <= 31; $day++)
                     <tr>
                         <td class="border p-2 font-bold">{{ $day }}</td>
-                        @foreach($selectedClient?->activeCategories ?? [] as $category)
+                        @foreach($selectedCategories as $category)
                             @php($entry = $entries->first(fn ($e) => $e->service_day == $day && $e->client_category_id == $category->id))
                             <td class="border p-1 align-top">
                                 <input class="w-full border-0 text-right" inputmode="decimal" placeholder="0,00" name="grid[{{ $day }}][{{ $category->id }}]" data-grid-day="{{ $day }}" data-grid-category="{{ $category->id }}" value="{{ old("grid.$day.$category->id", $entry ? number_format($entry->amount_cents / 100, 2) : '') }}">
@@ -166,6 +242,10 @@
                 @endfor
             </tbody>
         </table>
+
+        @if($useCompactGrid)
+            </details>
+        @endif
     </section>
 
     <section class="panel p-6">
@@ -181,7 +261,7 @@
                 </select>
                 <select name="adjustments[{{ $i }}][client_category_id]" aria-label="Catégorie">
                     <option value="">Facture entière</option>
-                    @foreach($selectedClient?->activeCategories ?? [] as $category)
+                    @foreach($selectedCategories as $category)
                         <option value="{{ $category->id }}" @selected($adj?->client_category_id === $category->id)>{{ $category->name }}</option>
                     @endforeach
                 </select>
@@ -190,11 +270,51 @@
         @endfor
     </section>
 
-    <button class="btn btn-primary" @disabled($clients->isEmpty() || ! $hasCategories)>Sauvegarder brouillon</button>
+    <div class="flex flex-wrap items-center gap-3">
+        <button class="btn btn-primary" @disabled($clients->isEmpty() || ! $hasCategories)>
+            @if($invoice->exists)
+                Enregistrer les modifications
+            @elseif($willAutoApprove)
+                Créer la facture
+            @else
+                Sauvegarder brouillon
+            @endif
+        </button>
+        @if($willAutoApprove)
+            <p class="text-sm font-semibold text-emerald-700">
+                La facture sera approuvée automatiquement.
+            </p>
+        @endif
+    </div>
 </form>
 
 <script>
     (() => {
+        const clientSelector = document.querySelector('[data-client-selector]');
+
+        const loadSelectedClient = () => {
+            if (! clientSelector?.value) return;
+
+            const url = new URL(window.location.href);
+            url.searchParams.set('client_id', clientSelector.value);
+            url.searchParams.set('month', document.querySelector('[name=invoice_month]')?.value || '{{ $invoice->invoice_month }}');
+            url.searchParams.set('year', document.querySelector('[name=invoice_year]')?.value || '{{ $invoice->invoice_year }}');
+            window.location.assign(url.toString());
+        };
+
+        const synchronizeRestoredSelection = () => {
+            if (
+                clientSelector?.value
+                && clientSelector.value !== clientSelector.dataset.renderedClientId
+            ) {
+                loadSelectedClient();
+            }
+        };
+
+        clientSelector?.addEventListener('change', loadSelectedClient);
+        window.addEventListener('pageshow', synchronizeRestoredSelection);
+        synchronizeRestoredSelection();
+
         const calculator = document.querySelector('[data-item-calculator]');
         if (! calculator) return;
 
@@ -204,6 +324,8 @@
         const unitPriceInput = calculator.querySelector('[data-item-unit-price]');
         const totalInput = calculator.querySelector('[data-item-total]');
         const addButton = document.querySelector('[data-item-add]');
+        const addedItemsBody = document.querySelector('[data-added-items-body]');
+        const addedItemsEmpty = document.querySelector('[data-added-items-empty]');
         let detailIndex = Date.now();
 
         const parseMoney = (value) => {
@@ -270,9 +392,30 @@
                 detailList.appendChild(input);
             });
 
+            if (addedItemsBody) {
+                const summaryRow = document.createElement('tr');
+                summaryRow.className = 'border-t border-villeneuve-line';
+
+                [
+                    { value: day, className: 'p-3 font-bold' },
+                    { value: selectedLabel, className: 'p-3' },
+                    { value: quantityInput.value || '0', className: 'p-3 text-right' },
+                    { value: `${formatMoney(parseMoney(unitPriceInput.value))} $`, className: 'p-3 text-right' },
+                    { value: `${formatMoney(total)} $`, className: 'p-3 text-right font-bold' },
+                ].forEach(({ value, className }) => {
+                    const cell = document.createElement('td');
+                    cell.className = className;
+                    cell.textContent = value;
+                    summaryRow.appendChild(cell);
+                });
+
+                addedItemsBody.appendChild(summaryRow);
+                if (addedItemsEmpty) addedItemsEmpty.hidden = true;
+            }
+
             quantityInput.value = '1';
             useCatalogPrice();
-            target.focus();
+            if (target.offsetParent !== null) target.focus();
         };
 
         quantityInput.addEventListener('input', updateTotal);

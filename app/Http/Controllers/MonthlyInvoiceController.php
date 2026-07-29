@@ -10,6 +10,7 @@ use App\Models\UploadedDocument;
 use App\Services\AuditLogService;
 use App\Services\CsvExportService;
 use App\Services\DailyRecordAggregationService;
+use App\Services\InvoiceApprovalService;
 use App\Services\InvoiceCalculationService;
 use App\Services\InvoiceNumberService;
 use App\Services\InvoicePdfService;
@@ -56,11 +57,14 @@ class MonthlyInvoiceController extends Controller
             ->where('is_active', true)
             ->orderBy('name')
             ->get();
-        $selectedClientId = request('client_id') ?: $clients->first()?->id;
+        $selectedClient = $clients->firstWhere('id', (int) request('client_id')) ?? $clients->first();
+        $selectedCategories = $selectedClient
+            ? $selectedClient->categories()->where('is_active', true)->get()
+            : collect();
 
         return view('monthly-invoices.form', [
             'invoice' => new MonthlyInvoice([
-                'client_id' => $selectedClientId,
+                'client_id' => $selectedClient?->id,
                 'invoice_month' => $month,
                 'invoice_year' => $year,
                 'invoice_date' => now(),
@@ -69,12 +73,21 @@ class MonthlyInvoiceController extends Controller
                 'status' => 'draft',
             ]),
             'clients' => $clients,
+            'selectedClient' => $selectedClient,
+            'selectedCategories' => $selectedCategories,
             'entries' => collect(),
             'adjustments' => collect(),
         ]);
     }
 
-    public function store(Request $request, MoneyFormatter $money, InvoiceCalculationService $calculator, DailyRecordAggregationService $aggregator, AuditLogService $audit): RedirectResponse
+    public function store(
+        Request $request,
+        MoneyFormatter $money,
+        InvoiceCalculationService $calculator,
+        DailyRecordAggregationService $aggregator,
+        AuditLogService $audit,
+        InvoiceApprovalService $approval,
+    ): RedirectResponse
     {
         $data = $this->validated($request);
         $client = Client::with('activeCategories')->findOrFail($data['client_id']);
@@ -116,7 +129,16 @@ class MonthlyInvoiceController extends Controller
         $this->recalculate($invoice, $calculator);
         $audit->record('monthly_invoice.created', $invoice);
 
-        return redirect()->route('monthly-invoices.show', $invoice)->with('status', 'Brouillon de facture créé.');
+        if (Auth::user()->isSuperAdmin()) {
+            $approval->approve($invoice);
+        }
+
+        return redirect()->route('monthly-invoices.show', $invoice)->with(
+            'status',
+            Auth::user()->isSuperAdmin()
+                ? 'Facture créée et approuvée automatiquement.'
+                : 'Brouillon de facture créé.',
+        );
     }
 
     public function show(MonthlyInvoice $invoice, MoneyFormatter $money): View
@@ -128,12 +150,23 @@ class MonthlyInvoiceController extends Controller
     public function edit(MonthlyInvoice $invoice): View
     {
         $this->authorizeInvoice($invoice, true);
+        $clients = Client::with(['activeCategories', 'categories'])
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get();
+        $selectedClient = $clients->firstWhere(
+            'id',
+            (int) request('client_id', $invoice->client_id),
+        ) ?? $clients->first();
+        $selectedCategories = $selectedClient
+            ? $selectedClient->categories()->where('is_active', true)->get()
+            : collect();
+
         return view('monthly-invoices.form', [
             'invoice' => $invoice->load('entries', 'adjustments'),
-            'clients' => Client::with(['activeCategories', 'categories'])
-                ->where('is_active', true)
-                ->orderBy('name')
-                ->get(),
+            'clients' => $clients,
+            'selectedClient' => $selectedClient,
+            'selectedCategories' => $selectedCategories,
             'entries' => $invoice->entries,
             'adjustments' => $invoice->adjustments,
         ]);
@@ -169,12 +202,12 @@ class MonthlyInvoiceController extends Controller
         return redirect()->route('monthly-invoices.show', $invoice)->with('status', 'Facture mise à jour.');
     }
 
-    public function approve(MonthlyInvoice $invoice, AuditLogService $audit): RedirectResponse
+    public function approve(MonthlyInvoice $invoice, InvoiceApprovalService $approval): RedirectResponse
     {
+        abort_unless(Auth::user()->isSuperAdmin(), 403);
         $this->authorizeInvoice($invoice, true);
-        $invoice->update(['status' => 'approved']);
-        $invoice->dailyRecords()->update(['status' => 'invoiced']);
-        $audit->record('monthly_invoice.approved', $invoice);
+        $approval->approve($invoice);
+
         return back()->with('status', 'Facture approuvée.');
     }
 

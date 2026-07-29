@@ -55,7 +55,13 @@
     <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
             <h2 class="text-xl font-bold text-villeneuve-forest">Commandes client à traiter</h2>
-            <p class="mt-1 text-sm text-stone-600">Approuve une commande, puis crée son brouillon de facture.</p>
+            <p class="mt-1 text-sm text-stone-600">
+                @if(auth()->user()->isSuperAdmin())
+                    Approuve une commande, puis crée sa facture. Elle sera approuvée automatiquement.
+                @else
+                    Approuve une commande, puis crée son brouillon de facture.
+                @endif
+            </p>
         </div>
         <a class="btn btn-secondary" href="{{ route('account-statements.index') }}">Voir les états de compte</a>
     </div>
