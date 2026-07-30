@@ -15,11 +15,12 @@ use Illuminate\View\View;
 
 class ClientCategoryController extends Controller
 {
-    public function index(Client $client): View
+    public function index(Client $client, SharedCatalogService $catalogs): View
     {
         return view('clients.categories', [
             'client' => $client->load('categories'),
             'catalogTargets' => Client::where('is_active', true)->orderBy('name')->get(['id', 'name']),
+            'employeeHotelTargets' => $catalogs->employeeHotelClients(),
         ]);
     }
 
@@ -161,6 +162,37 @@ class ClientCategoryController extends Controller
         return redirect()
             ->route('clients.categories.index', $client)
             ->with('status', "Catalogue commerces Ottawa appliqué à {$targets->count()} client(s).");
+    }
+
+    public function applyEmployeeTemplate(
+        Client $client,
+        SharedCatalogService $catalogs,
+        AuditLogService $audit,
+    ): RedirectResponse {
+        $targets = $catalogs->employeeHotelClients();
+
+        if ($targets->isEmpty()) {
+            throw ValidationException::withMessages([
+                'employee_catalog' => 'Aucun hôtel admissible n’a été trouvé. Vérifie les noms des clients configurés.',
+            ]);
+        }
+
+        foreach ($targets as $target) {
+            $applied = $catalogs->applyEmployeeCatalog($target);
+            $audit->record(
+                'client.employee_catalog_applied',
+                $target,
+                ['template' => 'employees'],
+                ['template' => 'employees', 'active_items' => $applied],
+            );
+        }
+
+        return redirect()
+            ->route('clients.categories.index', $client)
+            ->with(
+                'status',
+                "Section EMPLOYÉS et ses 8 tarifs appliqués à {$targets->count()} hôtel(s). Hilton Lac-Leamy a été exclu.",
+            );
     }
 
     private function targetIds(Request $request): Collection

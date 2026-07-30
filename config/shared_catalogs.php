@@ -15,6 +15,49 @@ return [
         'Ottawa Marriott Hotel' => ['Ottawa Marriott Hotel', 'Ottawa Marriott'],
     ],
 
+    /*
+     * Hôtels qui reçoivent le tarif EMPLOYÉS. Hilton Garden Inn fait partie
+     * du groupe standard; Hilton Lac-Leamy conserve son catalogue distinct.
+     */
+    'employee_hotel_targets' => [
+        'Holiday Inn Ottawa Dwtn - Parliament Hill' => [
+            'Holiday Inn Ottawa Dwtn - Parliament Hill',
+            'Holiday Inn Ottawa Downtown - Parliament Hill',
+            'Holiday Inn Ottawa Downtown',
+        ],
+        'Arc The Hotel Ottawa' => ['Arc The Hotel Ottawa', 'ARC THE.HOTEL Ottawa'],
+        'Hilton Garden Inn' => ['Hilton Garden Inn'],
+        'Lord Elgin Hotel' => ['Lord Elgin Hotel', 'Lord Elgin'],
+        'Metcalfe Hôtel Ottawa' => ['Metcalfe Hôtel Ottawa', 'Metcalfe Hotel Ottawa', 'Hotel Metcalfe'],
+        'Ottawa Marriott Hotel' => ['Ottawa Marriott Hotel', 'Ottawa Marriott'],
+        'Four Points' => [
+            'Four Points',
+            'Four Points by Sheraton Gatineau-Ottawa',
+            'Four Points Gatineau-Ottawa',
+        ],
+    ],
+
+    'employee_hotel_exclusions' => [
+        'Hilton Lac Leamy',
+        'Casino / Hilton Lac Leamy',
+        'Casino Hilton Lac Leamy',
+    ],
+
+    /*
+     * Tarif de base demandé pour la nouvelle section EMPLOYÉS.
+     * "And up" est conservé dans le nom afin d'indiquer un prix minimum.
+     */
+    'employees' => [
+        ['dry_cleaning', 'employees', 'Trouser', 500],
+        ['dry_cleaning', 'employees', 'Shirts', 350],
+        ['dry_cleaning', 'employees', 'Blouse', 500],
+        ['dry_cleaning', 'employees', 'Skirt', 500],
+        ['dry_cleaning', 'employees', 'Jacket', 500],
+        ['dry_cleaning', 'employees', '2pc suit', 1000],
+        ['dry_cleaning', 'employees', 'Dress (and up)', 1000],
+        ['dry_cleaning', 'employees', 'Coat (and up)', 2500],
+    ],
+
     'store_targets' => [
         'Glebe tailoring' => ['Glebe tailoring', 'Glebe Tailoring'],
         'Em tailor' => ['Em tailor', 'EM Tailor'],

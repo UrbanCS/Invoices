@@ -63,6 +63,7 @@ Route::middleware(['auth', 'role:super_admin'])->group(function () {
     Route::post('/clients/{client}/categories/activate-all', [ClientCategoryController::class, 'activateAll'])->name('clients.categories.activate-all');
     Route::post('/clients/{client}/categories/copy', [ClientCategoryController::class, 'copy'])->name('clients.categories.copy');
     Route::post('/clients/{client}/categories/apply-store-template', [ClientCategoryController::class, 'applyStoreTemplate'])->name('clients.categories.apply-store-template');
+    Route::post('/clients/{client}/categories/apply-employee-template', [ClientCategoryController::class, 'applyEmployeeTemplate'])->name('clients.categories.apply-employee-template');
     Route::put('/clients/{client}/categories/{category}', [ClientCategoryController::class, 'update'])->name('clients.categories.update');
     Route::delete('/clients/{client}/categories/{category}', [ClientCategoryController::class, 'destroy'])->name('clients.categories.destroy');
     Route::get('/settings/business', [BusinessSettingController::class, 'edit'])->name('settings.business.edit');

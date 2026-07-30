@@ -32,7 +32,7 @@
     </div>
 </div>
 
-<div class="mt-6 grid gap-6 lg:grid-cols-2">
+<div class="mt-6 grid gap-6 lg:grid-cols-3">
     <form class="panel p-5" method="post" action="{{ route('clients.categories.copy', $client) }}">
         @csrf
         <h2 class="text-xl font-bold text-villeneuve-forest">Copier ce catalogue</h2>
@@ -63,6 +63,31 @@
         </select>
         <p class="mt-1 text-xs text-stone-500">Le profil de taxes de chaque commerce est conservé.</p>
         <button class="btn btn-primary mt-4">Appliquer le modèle aux commerces</button>
+    </form>
+
+    <form
+        class="panel p-5"
+        method="post"
+        action="{{ route('clients.categories.apply-employee-template', $client) }}"
+        onsubmit="return confirm('Ajouter ou mettre à jour la section EMPLOYÉS dans tous les hôtels affichés? Les autres items seront conservés.');"
+    >
+        @csrf
+        <h2 class="text-xl font-bold text-villeneuve-forest">Modèle EMPLOYÉS</h2>
+        <p class="mt-1 text-sm text-stone-600">
+            Ajoute les 8 items et prix de base demandés sans remplacer les catalogues existants.
+            Hilton Lac-Leamy est exclu.
+        </p>
+        <div class="mt-4 rounded border border-villeneuve-line bg-stone-50 p-3 text-sm">
+            <div class="label">Hôtels ciblés</div>
+            @forelse($employeeHotelTargets as $target)
+                <div class="mt-1">{{ $target->name }}</div>
+            @empty
+                <div class="mt-1 text-amber-800">Aucun hôtel configuré trouvé.</div>
+            @endforelse
+        </div>
+        <button class="btn btn-primary mt-4" @disabled($employeeHotelTargets->isEmpty())>
+            Appliquer EMPLOYÉS aux hôtels
+        </button>
     </form>
 </div>
 

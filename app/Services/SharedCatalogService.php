@@ -49,6 +49,88 @@ class SharedCatalogService
         return $this->replaceActiveCatalog($target, $items);
     }
 
+    public function applyEmployeeCatalog(Client $target): int
+    {
+        $items = collect(config('shared_catalogs.employees', []))
+            ->values()
+            ->map(function (array $row, int $position) {
+                [$serviceType, $audience, $name, $priceCents] = $row;
+
+                return [
+                    'service_type' => $serviceType,
+                    'audience' => $audience,
+                    'name' => $name,
+                    'default_price_cents' => $priceCents,
+                    'sort_order' => $position + 1,
+                    'is_taxable' => true,
+                ];
+            });
+
+        return $this->mergeCatalog($target, $items);
+    }
+
+    public function employeeHotelClients(): Collection
+    {
+        $excluded = collect(config('shared_catalogs.employee_hotel_exclusions', []))
+            ->map(fn (string $alias) => $this->normalize($alias))
+            ->filter();
+        $configured = collect(config('shared_catalogs.employee_hotel_targets', []))
+            ->map(fn (array $aliases) => $this->findClientByAliases($aliases))
+            ->filter();
+        $hotelStyleClients = Client::where('is_active', true)
+            ->where('invoice_style', 'hotel')
+            ->get();
+
+        return $configured
+            ->merge($hotelStyleClients)
+            ->reject(function (Client $client) use ($excluded) {
+                $name = $this->normalize($client->name);
+
+                return $excluded->contains(
+                    fn (string $alias) => $name === $alias || str_contains($name, $alias),
+                );
+            })
+            ->unique('id')
+            ->sortBy('name')
+            ->values();
+    }
+
+    public function mergeCatalog(Client $target, Collection $items): int
+    {
+        return DB::transaction(function () use ($target, $items) {
+            $existingByKey = $target->categories()
+                ->get()
+                ->keyBy(fn (ClientCategory $category) => $this->key(
+                    $category->service_type,
+                    $category->audience,
+                    $category->name,
+                ));
+
+            foreach ($items as $item) {
+                $key = $this->key($item['service_type'], $item['audience'], $item['name']);
+                $category = $existingByKey->get($key);
+                $payload = [
+                    'name' => $item['name'],
+                    'service_type' => $item['service_type'],
+                    'audience' => $item['audience'],
+                    'sort_order' => max(0, (int) ($item['sort_order'] ?? 0)),
+                    'is_taxable' => (bool) ($item['is_taxable'] ?? true),
+                    'default_price_cents' => max(0, (int) ($item['default_price_cents'] ?? 0)),
+                    'is_active' => true,
+                ];
+
+                if ($category) {
+                    $category->update($payload);
+                } else {
+                    $category = $target->categories()->create($payload);
+                    $existingByKey->put($key, $category);
+                }
+            }
+
+            return $items->count();
+        });
+    }
+
     public function replaceActiveCatalog(Client $target, Collection $items): int
     {
         return DB::transaction(function () use ($target, $items) {

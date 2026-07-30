@@ -29,7 +29,9 @@ class Client extends Model
             ->orderByRaw("CASE audience
                 WHEN 'gentlemen' THEN 1
                 WHEN 'ladies' THEN 2
-                ELSE 3
+                WHEN 'employees' THEN 3
+                WHEN 'unisex' THEN 4
+                ELSE 5
             END")
             ->orderBy('sort_order')
             ->orderBy('name');

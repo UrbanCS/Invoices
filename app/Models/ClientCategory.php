@@ -17,6 +17,7 @@ class ClientCategory extends Model
     public const AUDIENCES = [
         'gentlemen' => 'Messieurs / Gentlemen',
         'ladies' => 'Dames / Ladies',
+        'employees' => 'EMPLOYÉS',
         'unisex' => 'Tous / Unisex',
     ];
 

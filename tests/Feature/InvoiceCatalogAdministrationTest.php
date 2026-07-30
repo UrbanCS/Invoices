@@ -167,6 +167,110 @@ class InvoiceCatalogAdministrationTest extends TestCase
         $this->assertSame('on_hst', $store->fresh()->tax_profile);
     }
 
+    public function test_admin_can_add_the_employee_catalog_to_standard_hotels_without_replacing_existing_items(): void
+    {
+        $admin = $this->user('super_admin', 'admin-employee-template@test.com');
+        $holidayInn = $this->client('Holiday Inn Ottawa Dwtn - Parliament Hill');
+        $hiltonGarden = $this->client('Hilton Garden Inn');
+        $marriott = $this->client('Ottawa Marriott Hotel');
+        $fourPoints = $this->client('Four Points by Sheraton Gatineau-Ottawa');
+        $hiltonLacLeamy = $this->client('Hilton Lac Leamy', 'qc_tps_tvq');
+        $futureHotel = $this->client('Nouvel hôtel partenaire');
+        $store = $this->client('Glebe tailoring');
+        $hiltonLacLeamy->update(['invoice_style' => 'hotel']);
+        $futureHotel->update(['invoice_style' => 'hotel']);
+
+        ClientCategory::create([
+            'client_id' => $holidayInn->id,
+            'name' => 'Item existant',
+            'service_type' => 'laundry',
+            'audience' => 'gentlemen',
+            'default_price_cents' => 890,
+            'is_taxable' => true,
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($admin)
+            ->post(route('clients.categories.apply-employee-template', $holidayInn))
+            ->assertSessionHasNoErrors()
+            ->assertSessionHas('status');
+
+        $expectedPrices = [
+            'Trouser' => 500,
+            'Shirts' => 350,
+            'Blouse' => 500,
+            'Skirt' => 500,
+            'Jacket' => 500,
+            '2pc suit' => 1000,
+            'Dress (and up)' => 1000,
+            'Coat (and up)' => 2500,
+        ];
+
+        foreach ([$holidayInn, $hiltonGarden, $marriott, $fourPoints, $futureHotel] as $hotel) {
+            $this->assertSame(
+                8,
+                $hotel->categories()->where('audience', 'employees')->where('is_active', true)->count(),
+            );
+
+            foreach ($expectedPrices as $name => $priceCents) {
+                $this->assertDatabaseHas('client_categories', [
+                    'client_id' => $hotel->id,
+                    'name' => $name,
+                    'service_type' => 'dry_cleaning',
+                    'audience' => 'employees',
+                    'default_price_cents' => $priceCents,
+                    'is_active' => true,
+                ]);
+            }
+        }
+
+        $this->assertDatabaseHas('client_categories', [
+            'client_id' => $holidayInn->id,
+            'name' => 'Item existant',
+            'is_active' => true,
+        ]);
+        $this->assertDatabaseMissing('client_categories', [
+            'client_id' => $hiltonLacLeamy->id,
+            'audience' => 'employees',
+        ]);
+        $this->assertDatabaseMissing('client_categories', [
+            'client_id' => $store->id,
+            'audience' => 'employees',
+        ]);
+        $this->assertSame('EMPLOYÉS', ClientCategory::audienceLabel('employees'));
+
+        $clientUser = $this->user('client', 'employee-catalog-client@test.com');
+        $clientUser->update(['client_id' => $holidayInn->id]);
+
+        $this->actingAs($clientUser)
+            ->get(route('portal.orders.create'))
+            ->assertOk()
+            ->assertSee('EMPLOYÉS')
+            ->assertSee('Trouser')
+            ->assertSee('5,00 $');
+    }
+
+    public function test_employee_catalog_command_is_idempotent(): void
+    {
+        $holidayInn = $this->client('Holiday Inn Ottawa Downtown');
+
+        $this->artisan('app:apply-employee-catalog', ['--force' => true])
+            ->assertSuccessful();
+        $this->artisan('app:apply-employee-catalog', ['--force' => true])
+            ->assertSuccessful();
+
+        $this->assertSame(
+            8,
+            $holidayInn->categories()->where('audience', 'employees')->where('is_active', true)->count(),
+        );
+        $this->assertDatabaseHas('client_categories', [
+            'client_id' => $holidayInn->id,
+            'name' => 'Dress (and up)',
+            'default_price_cents' => 1000,
+            'sort_order' => 7,
+        ]);
+    }
+
     public function test_pdf_uses_an_itemized_layout_for_a_large_catalog(): void
     {
         $admin = $this->user('super_admin', 'admin-pdf-layout@test.com');

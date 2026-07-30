@@ -175,12 +175,15 @@ Après avoir téléversé une mise à jour dans `app_core`, exécuter:
 ```bash
 php artisan optimize:clear
 php artisan app:apply-shared-catalogs --force
+php artisan app:apply-employee-catalog --force
 php artisan view:cache
 ```
 
 La commande copie le catalogue actif de `Holiday Inn Ottawa Dwtn - Parliament Hill` vers les hôtels configurés dans `config/shared_catalogs.php`. Elle applique aussi le catalogue commerces extrait de `price list store ottawa (002).docx` aux commerces configurés. Les taxes propres à chaque client et les anciennes factures sont conservées.
 
-L’administrateur peut également ouvrir `Clients > Catégories` pour copier manuellement le catalogue courant vers plusieurs clients ou appliquer le modèle commerces Ottawa. Les prix décrits comme une fourchette ou « et plus » dans le document source utilisent le prix de base indiqué.
+La commande `app:apply-employee-catalog` ajoute la section `EMPLOYÉS` et ses huit tarifs aux hôtels configurés, sans remplacer leurs items existants. Hilton Lac-Leamy est explicitement exclu; Hilton Garden Inn demeure un hôtel standard. Cette commande est idempotente et peut être relancée après une mise à jour.
+
+L’administrateur peut également ouvrir `Clients > Catégories` pour copier manuellement le catalogue courant, appliquer le modèle commerces Ottawa ou appliquer le modèle `EMPLOYÉS` à tous les hôtels admissibles. Les prix décrits comme une fourchette ou « et plus » utilisent le prix de base indiqué.
 
 Pour retirer une facture créée uniquement pour un test, ouvrir `Factures`, puis cliquer sur `Supprimer`, ou ouvrir la facture et choisir `Supprimer définitivement`. Cette action est réservée au super administrateur. Elle supprime la facture, son PDF et ses pièces jointes, puis rend de nouveau facturables ses commandes et registres sources.
 

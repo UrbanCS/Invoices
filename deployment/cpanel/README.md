@@ -7,10 +7,11 @@ Après avoir téléversé les fichiers privés modifiés dans `app_core`, lancer
 ```bash
 php artisan optimize:clear
 php artisan app:apply-shared-catalogs --force
+php artisan app:apply-employee-catalog --force
 php artisan view:cache
 ```
 
-Cette commande copie le catalogue actif Holiday Inn vers les hôtels configurés et applique le modèle commerces Ottawa. Elle conserve les profils de taxes propres à chaque client. Régénérer ensuite les PDF concernés pour obtenir la présentation compacte des grands catalogues.
+La première commande de catalogue copie le catalogue actif Holiday Inn vers les hôtels configurés et applique le modèle commerces Ottawa. La seconde ajoute la section `EMPLOYÉS` aux hôtels admissibles sans remplacer leur catalogue; Hilton Lac-Leamy est exclu. Elles conservent les profils de taxes propres à chaque client. Régénérer ensuite les PDF concernés pour obtenir la présentation compacte des grands catalogues.
 
 This app is designed for two hosting layouts.
 

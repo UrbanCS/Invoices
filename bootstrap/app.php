@@ -11,6 +11,7 @@ $app = Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withCommands([
+        App\Console\Commands\ApplyEmployeeCatalog::class,
         App\Console\Commands\ApplySharedCatalogs::class,
         App\Console\Commands\CleanDemoData::class,
     ])
