@@ -28,10 +28,16 @@ class PortalOrderController extends Controller
     public function create(): View
     {
         $client = Auth::user()->client()->with(['activeCategories', 'employeeNames'])->firstOrFail();
+        $defaultOrderType = $client->activeCategories->contains('audience', 'employees')
+            ? 'employee'
+            : 'hotel_guest';
 
         return view('portal.orders.create', [
             'client' => $client,
-            'order' => new CleaningOrder(['service_date' => now()]),
+            'order' => new CleaningOrder([
+                'service_date' => now(),
+                'order_type' => $defaultOrderType,
+            ]),
         ]);
     }
 
@@ -39,21 +45,27 @@ class PortalOrderController extends Controller
     {
         $data = $this->validated($request);
         $client = Auth::user()->client()->with('activeCategories')->firstOrFail();
-        $employeeName = $this->employeeName($data);
-        [$items, $subtotalCents] = $this->itemsAndSubtotal($client, $data['quantities'] ?? []);
+        $identity = $this->identity($data);
+        [$items, $subtotalCents] = $this->itemsAndSubtotal(
+            $client,
+            $data['quantities'] ?? [],
+            $data['order_type'],
+        );
 
-        $order = DB::transaction(function () use ($client, $employeeName, $data, $items, $subtotalCents) {
-            ClientEmployeeName::firstOrCreate([
-                'client_id' => $client->id,
-                'name' => $employeeName,
-            ]);
+        $order = DB::transaction(function () use ($client, $identity, $data, $items, $subtotalCents) {
+            if ($data['order_type'] === 'employee') {
+                ClientEmployeeName::firstOrCreate([
+                    'client_id' => $client->id,
+                    'name' => $identity['employee_name'],
+                ]);
+            }
 
             $order = CleaningOrder::create([
                 'client_id' => $client->id,
                 'user_id' => Auth::id(),
                 'service_date' => $data['service_date'],
-                'employee_name' => $employeeName,
-                'department_number' => trim($data['department_number']),
+                'order_type' => $data['order_type'],
+                ...$identity,
                 'status' => 'submitted',
                 'subtotal_cents' => $subtotalCents,
                 'adjustment_cents' => 0,
@@ -85,19 +97,25 @@ class PortalOrderController extends Controller
         $this->authorizeEditableOrder($order);
         $data = $this->validated($request);
         $client = Auth::user()->client()->with('activeCategories')->firstOrFail();
-        $employeeName = $this->employeeName($data);
-        [$items, $subtotalCents] = $this->itemsAndSubtotal($client, $data['quantities'] ?? []);
+        $identity = $this->identity($data);
+        [$items, $subtotalCents] = $this->itemsAndSubtotal(
+            $client,
+            $data['quantities'] ?? [],
+            $data['order_type'],
+        );
 
-        DB::transaction(function () use ($order, $client, $employeeName, $data, $items, $subtotalCents) {
-            ClientEmployeeName::firstOrCreate([
-                'client_id' => $client->id,
-                'name' => $employeeName,
-            ]);
+        DB::transaction(function () use ($order, $client, $identity, $data, $items, $subtotalCents) {
+            if ($data['order_type'] === 'employee') {
+                ClientEmployeeName::firstOrCreate([
+                    'client_id' => $client->id,
+                    'name' => $identity['employee_name'],
+                ]);
+            }
 
             $order->update([
                 'service_date' => $data['service_date'],
-                'employee_name' => $employeeName,
-                'department_number' => trim($data['department_number']),
+                'order_type' => $data['order_type'],
+                ...$identity,
                 'subtotal_cents' => $subtotalCents,
                 'total_cents' => $subtotalCents + $order->adjustment_cents,
                 'notes' => $data['notes'] ?? null,
@@ -122,32 +140,66 @@ class PortalOrderController extends Controller
     {
         return $request->validate([
             'service_date' => ['required', 'date'],
+            'order_type' => ['required', 'in:employee,hotel_guest'],
             'employee_name' => ['nullable', 'string', 'max:255'],
             'new_employee_name' => ['nullable', 'string', 'max:255'],
-            'department_number' => ['required', 'string', 'max:100'],
+            'employee_tag_number' => ['nullable', 'string', 'max:100'],
+            'department_number' => ['nullable', 'string', 'max:100'],
+            'guest_name' => ['nullable', 'string', 'max:255'],
+            'room_number' => ['nullable', 'string', 'max:100'],
             'notes' => ['nullable', 'string'],
             'quantities' => ['nullable', 'array'],
             'quantities.*' => ['nullable', 'numeric', 'min:0', 'max:999999'],
         ]);
     }
 
-    private function employeeName(array $data): string
+    private function identity(array $data): array
     {
+        if ($data['order_type'] === 'hotel_guest') {
+            $guestName = trim((string) ($data['guest_name'] ?? ''));
+            $roomNumber = trim((string) ($data['room_number'] ?? ''));
+
+            if ($guestName === '' || $roomNumber === '') {
+                throw ValidationException::withMessages(array_filter([
+                    'guest_name' => $guestName === '' ? 'Entre le nom du client de l’hôtel.' : null,
+                    'room_number' => $roomNumber === '' ? 'Entre le numéro de chambre.' : null,
+                ]));
+            }
+
+            return [
+                'employee_name' => null,
+                'employee_tag_number' => null,
+                'department_number' => null,
+                'guest_name' => $guestName,
+                'room_number' => $roomNumber,
+            ];
+        }
+
         $newEmployeeName = trim((string) ($data['new_employee_name'] ?? ''));
         $employeeName = $newEmployeeName !== ''
             ? $newEmployeeName
             : trim((string) ($data['employee_name'] ?? ''));
+        $employeeTagNumber = trim((string) ($data['employee_tag_number'] ?? ''));
+        $departmentNumber = trim((string) ($data['department_number'] ?? ''));
 
-        if ($employeeName === '') {
-            throw ValidationException::withMessages([
-                'employee_name' => 'Entre ou choisis le nom de l’employé.',
-            ]);
+        if ($employeeName === '' || $employeeTagNumber === '' || $departmentNumber === '') {
+            throw ValidationException::withMessages(array_filter([
+                'employee_name' => $employeeName === '' ? 'Entre ou choisis le nom de l’employé.' : null,
+                'employee_tag_number' => $employeeTagNumber === '' ? 'Entre le numéro d’étiquette.' : null,
+                'department_number' => $departmentNumber === '' ? 'Entre le numéro de département.' : null,
+            ]));
         }
 
-        return $employeeName;
+        return [
+            'employee_name' => $employeeName,
+            'employee_tag_number' => $employeeTagNumber,
+            'department_number' => $departmentNumber,
+            'guest_name' => null,
+            'room_number' => null,
+        ];
     }
 
-    private function itemsAndSubtotal(Client $client, array $quantities): array
+    private function itemsAndSubtotal(Client $client, array $quantities, string $orderType): array
     {
         $items = [];
         $subtotalCents = 0;
@@ -163,6 +215,17 @@ class PortalOrderController extends Controller
 
             if (! $category) {
                 continue;
+            }
+
+            $isEmployeePrice = $category->audience === 'employees';
+            $matchesOrderType = $orderType === 'employee' ? $isEmployeePrice : ! $isEmployeePrice;
+
+            if (! $matchesOrderType) {
+                throw ValidationException::withMessages([
+                    'quantities' => $orderType === 'employee'
+                        ? 'Une commande d’employé doit utiliser uniquement les prix EMPLOYÉS.'
+                        : 'Une commande de client de l’hôtel ne peut pas utiliser les prix EMPLOYÉS.',
+                ]);
             }
 
             $totalCents = (int) round($quantity * $category->default_price_cents);

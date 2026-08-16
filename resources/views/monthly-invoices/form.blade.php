@@ -7,6 +7,9 @@
     $useCompactGrid = $selectedCategories->count() > 8;
     $inactiveCategoryCount = $selectedClient?->categories->where('is_active', false)->count() ?? 0;
     $willAutoApprove = ! $invoice->exists && auth()->user()->isSuperAdmin();
+    $hasEmployeeCategories = $selectedCategories->contains('audience', 'employees');
+    $hasGuestCategories = $selectedCategories->contains(fn ($category) => $category->audience !== 'employees');
+    $defaultBillingType = $hasEmployeeCategories ? 'employee' : 'hotel_guest';
 @endphp
 
 <div class="flex flex-wrap items-center justify-between gap-4">
@@ -74,10 +77,17 @@
                 {{ $useCompactGrid ? 'Ajouter à la facture' : 'Ajouter à la grille' }}
             </button>
         </div>
-        <div class="mt-4 grid gap-3 md:grid-cols-5" data-item-calculator>
+        <div class="mt-4 grid gap-3 md:grid-cols-6" data-item-calculator data-default-billing-type="{{ $defaultBillingType }}">
             <div>
                 <label class="label">Jour</label>
                 <input class="mt-1 w-full" type="number" min="1" max="31" value="1" data-item-day>
+            </div>
+            <div>
+                <label class="label">Type</label>
+                <select class="mt-1 w-full" data-item-billing-type>
+                    <option value="employee" @disabled(! $hasEmployeeCategories)>Employé</option>
+                    <option value="hotel_guest" @disabled(! $hasGuestCategories)>Client de l’hôtel</option>
+                </select>
             </div>
             <div>
                 <label class="label">Item</label>
@@ -89,6 +99,8 @@
                                     <option
                                         value="{{ $category->id }}"
                                         data-unit-price="{{ $category->default_price_cents }}"
+                                        data-billing-type="{{ $category->audience === 'employees' ? 'employee' : 'hotel_guest' }}"
+                                        data-item-label="{{ $category->name }}"
                                     >{{ $category->name }}</option>
                                 @endforeach
                             </optgroup>
@@ -109,6 +121,34 @@
                 <input class="mt-1 w-full text-right font-bold text-villeneuve-forest" readonly value="0,00" data-item-total>
             </div>
         </div>
+
+        <div class="mt-4 grid gap-3 rounded border border-villeneuve-line bg-stone-50 p-4 md:grid-cols-3" data-item-identity="employee">
+            <div>
+                <label class="label">Nom de l’employé</label>
+                <input class="mt-1 w-full" data-item-person-name placeholder="Ex. Julian">
+            </div>
+            <div>
+                <label class="label">No d’étiquette</label>
+                <input class="mt-1 w-full" data-item-reference-number placeholder="Ex. 0096">
+            </div>
+            <div>
+                <label class="label">No de département (facultatif)</label>
+                <input class="mt-1 w-full" data-item-department-number placeholder="Ex. 2357">
+            </div>
+        </div>
+
+        <div class="mt-4 grid gap-3 rounded border border-villeneuve-line bg-stone-50 p-4 md:grid-cols-2" data-item-identity="hotel_guest">
+            <div>
+                <label class="label">Nom du client</label>
+                <input class="mt-1 w-full" data-item-person-name placeholder="Nom du client de l’hôtel">
+            </div>
+            <div>
+                <label class="label">No de chambre</label>
+                <input class="mt-1 w-full" data-item-reference-number placeholder="Ex. 478">
+            </div>
+        </div>
+
+        <p class="mt-3 text-sm font-semibold text-red-700" data-item-error hidden></p>
     </section>
 
     <section class="panel overflow-x-auto p-6">
@@ -144,12 +184,49 @@
             </div>
         @endif
 
+        <div class="mt-4 overflow-x-auto border border-villeneuve-line">
+            <div class="border-b border-villeneuve-line bg-stone-50 px-4 py-3">
+                <h3 class="font-bold text-villeneuve-forest">Répartition mensuelle</h3>
+                <p class="mt-1 text-xs text-stone-600">Les montants sont séparés automatiquement selon le type et le tarif choisis.</p>
+            </div>
+            <table class="w-full min-w-[560px] border-collapse text-sm">
+                <thead>
+                    <tr>
+                        <th class="border bg-villeneuve-mint p-2 text-left">Jour</th>
+                        <th class="border bg-villeneuve-mint p-2 text-right">EMPLOYÉS</th>
+                        <th class="border bg-villeneuve-mint p-2 text-right">CLIENTS</th>
+                        <th class="border bg-villeneuve-mint p-2 text-right">Total du jour</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for($day = 1; $day <= 31; $day++)
+                        <tr>
+                            <td class="border p-2 font-bold">{{ $day }}</td>
+                            <td class="border p-2 text-right tabular-nums" data-billing-summary-day="{{ $day }}" data-billing-summary-type="employee">0,00 $</td>
+                            <td class="border p-2 text-right tabular-nums" data-billing-summary-day="{{ $day }}" data-billing-summary-type="hotel_guest">0,00 $</td>
+                            <td class="border p-2 text-right font-semibold tabular-nums" data-billing-summary-day-total="{{ $day }}">0,00 $</td>
+                        </tr>
+                    @endfor
+                </tbody>
+                <tfoot>
+                    <tr class="font-black text-villeneuve-forest">
+                        <td class="border bg-villeneuve-mint p-2">Sous-totaux</td>
+                        <td class="border bg-villeneuve-mint p-2 text-right" data-billing-summary-subtotal="employee">0,00 $</td>
+                        <td class="border bg-villeneuve-mint p-2 text-right" data-billing-summary-subtotal="hotel_guest">0,00 $</td>
+                        <td class="border bg-villeneuve-mint p-2 text-right" data-billing-summary-grand-total>0,00 $</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
         @if($useCompactGrid)
             <div class="mt-4 border border-villeneuve-line" data-added-items-summary>
                 <table class="w-full text-sm">
                     <thead>
                         <tr>
                             <th class="bg-villeneuve-mint p-3 text-left">Jour</th>
+                            <th class="bg-villeneuve-mint p-3 text-left">Type</th>
+                            <th class="bg-villeneuve-mint p-3 text-left">Nom / référence</th>
                             <th class="bg-villeneuve-mint p-3 text-left">Item</th>
                             <th class="bg-villeneuve-mint p-3 text-right">Quantité</th>
                             <th class="bg-villeneuve-mint p-3 text-right">Prix unitaire</th>
@@ -161,8 +238,15 @@
                             @php($entryCategory = $selectedCategories->firstWhere('id', $entry->client_category_id))
                             @if(collect($entry->item_details)->isNotEmpty())
                                 @foreach($entry->item_details as $detail)
+                                    @php($detailBillingType = $detail['billing_type'] ?? ($entryCategory?->audience === 'employees' ? 'employee' : 'hotel_guest'))
+                                    @php($detailReferenceLabel = $detailBillingType === 'employee' ? 'No étiquette' : 'No chambre')
                                     <tr class="border-t border-villeneuve-line">
                                         <td class="p-3 font-bold">{{ $entry->service_day }}</td>
+                                        <td class="p-3">{{ $detailBillingType === 'employee' ? 'Employé' : 'Client de l’hôtel' }}</td>
+                                        <td class="p-3">
+                                            <strong>{{ $detail['person_name'] ?? '—' }}</strong>
+                                            <span class="block text-xs text-stone-500">{{ $detailReferenceLabel }}: {{ $detail['reference_number'] ?? '—' }}</span>
+                                        </td>
                                         <td class="p-3">{{ $detail['label'] ?? $entryCategory?->name ?? 'Item' }}</td>
                                         <td class="p-3 text-right">{{ $detail['quantity'] ?? '—' }}</td>
                                         <td class="p-3 text-right">{{ number_format(($detail['unit_price_cents'] ?? 0) / 100, 2, ',', ' ') }} $</td>
@@ -172,6 +256,8 @@
                             @elseif($entry->amount_cents > 0)
                                 <tr class="border-t border-villeneuve-line">
                                     <td class="p-3 font-bold">{{ $entry->service_day }}</td>
+                                    <td class="p-3">{{ $entryCategory?->audience === 'employees' ? 'Employé' : 'Client de l’hôtel' }}</td>
+                                    <td class="p-3">—</td>
                                     <td class="p-3">{{ $entryCategory?->name ?? $entry->category_name_snapshot }}</td>
                                     <td class="p-3 text-right">—</td>
                                     <td class="p-3 text-right">—</td>
@@ -223,17 +309,31 @@
                         @foreach($selectedCategories as $category)
                             @php($entry = $entries->first(fn ($e) => $e->service_day == $day && $e->client_category_id == $category->id))
                             <td class="border p-1 align-top">
-                                <input class="w-full border-0 text-right" inputmode="decimal" placeholder="0,00" name="grid[{{ $day }}][{{ $category->id }}]" data-grid-day="{{ $day }}" data-grid-category="{{ $category->id }}" value="{{ old("grid.$day.$category->id", $entry ? number_format($entry->amount_cents / 100, 2) : '') }}">
+                                <input class="w-full border-0 text-right" inputmode="decimal" placeholder="0,00" name="grid[{{ $day }}][{{ $category->id }}]" data-grid-day="{{ $day }}" data-grid-category="{{ $category->id }}" data-grid-billing-type="{{ $category->audience === 'employees' ? 'employee' : 'hotel_guest' }}" value="{{ old("grid.$day.$category->id", $entry ? number_format($entry->amount_cents / 100, 2) : '') }}">
                                 <div class="mt-1 space-y-1 text-xs text-stone-600" data-detail-list data-detail-day="{{ $day }}" data-detail-category="{{ $category->id }}">
                                     @foreach($entry?->item_details ?? [] as $detailIndex => $detail)
                                         @php($unit = number_format(($detail['unit_price_cents'] ?? 0) / 100, 2, ',', ' '))
                                         @php($total = number_format(($detail['total_cents'] ?? 0) / 100, 2, ',', ' '))
+                                        @php($detailBillingType = $detail['billing_type'] ?? ($category->audience === 'employees' ? 'employee' : 'hotel_guest'))
                                         <div class="rounded bg-villeneuve-mint px-2 py-1">
-                                            Qté {{ $detail['quantity'] ?? '' }} × Prix unit. {{ $unit }} $ = {{ $total }} $
+                                            {{ $detailBillingType === 'employee' ? 'Employé' : 'Client' }}
+                                            @if($detail['person_name'] ?? null)
+                                                · {{ $detail['person_name'] }}
+                                            @endif
+                                            @if($detail['reference_number'] ?? null)
+                                                · {{ $detailBillingType === 'employee' ? 'Étiquette' : 'Chambre' }} {{ $detail['reference_number'] }}
+                                            @endif
+                                            · Qté {{ $detail['quantity'] ?? '' }} × {{ $unit }} $ = {{ $total }} $
                                         </div>
                                         <input type="hidden" name="details[{{ $day }}][{{ $category->id }}][{{ $detailIndex }}][label]" value="{{ $detail['label'] ?? $category->name }}">
                                         <input type="hidden" name="details[{{ $day }}][{{ $category->id }}][{{ $detailIndex }}][quantity]" value="{{ $detail['quantity'] ?? '' }}">
                                         <input type="hidden" name="details[{{ $day }}][{{ $category->id }}][{{ $detailIndex }}][unit_price]" value="{{ number_format(($detail['unit_price_cents'] ?? 0) / 100, 2, ',', ' ') }}">
+                                        @if(array_key_exists('billing_type', $detail))
+                                            <input type="hidden" name="details[{{ $day }}][{{ $category->id }}][{{ $detailIndex }}][billing_type]" value="{{ $detailBillingType }}">
+                                            <input type="hidden" name="details[{{ $day }}][{{ $category->id }}][{{ $detailIndex }}][person_name]" value="{{ $detail['person_name'] ?? '' }}">
+                                            <input type="hidden" name="details[{{ $day }}][{{ $category->id }}][{{ $detailIndex }}][reference_number]" value="{{ $detail['reference_number'] ?? '' }}">
+                                            <input type="hidden" name="details[{{ $day }}][{{ $category->id }}][{{ $detailIndex }}][department_number]" value="{{ $detail['department_number'] ?? '' }}">
+                                        @endif
                                     @endforeach
                                 </div>
                             </td>
@@ -321,11 +421,14 @@
         const dayInput = calculator.querySelector('[data-item-day]');
         const categoryInput = calculator.querySelector('[data-item-category]');
         const quantityInput = calculator.querySelector('[data-item-quantity]');
+        const billingTypeInput = calculator.querySelector('[data-item-billing-type]');
         const unitPriceInput = calculator.querySelector('[data-item-unit-price]');
         const totalInput = calculator.querySelector('[data-item-total]');
         const addButton = document.querySelector('[data-item-add]');
         const addedItemsBody = document.querySelector('[data-added-items-body]');
         const addedItemsEmpty = document.querySelector('[data-added-items-empty]');
+        const itemError = document.querySelector('[data-item-error]');
+        const gridInputs = document.querySelectorAll('[data-grid-day][data-grid-category]');
         let detailIndex = Date.now();
 
         const parseMoney = (value) => {
@@ -340,6 +443,7 @@
         };
 
         const formatMoney = (amount) => amount.toFixed(2).replace('.', ',');
+        const formatCurrency = (amount) => `${formatMoney(amount)} $`;
 
         const currentTotal = () => {
             const quantity = Number.parseFloat(quantityInput.value || '0') || 0;
@@ -359,15 +463,111 @@
             updateTotal();
         };
 
+        const activeIdentityGroup = () => document.querySelector(`[data-item-identity="${billingTypeInput.value}"]`);
+
+        const updateIdentityFields = () => {
+            document.querySelectorAll('[data-item-identity]').forEach((group) => {
+                const active = group.dataset.itemIdentity === billingTypeInput.value;
+                group.hidden = ! active;
+                group.querySelectorAll('input').forEach((field) => {
+                    field.disabled = ! active;
+                });
+            });
+        };
+
+        const updateCategories = () => {
+            let firstAvailable = null;
+
+            Array.from(categoryInput.options).forEach((option) => {
+                const available = option.dataset.billingType === billingTypeInput.value;
+                option.disabled = ! available;
+                option.hidden = ! available;
+                if (available && ! firstAvailable) firstAvailable = option;
+            });
+
+            const selected = categoryInput.options[categoryInput.selectedIndex];
+            if (! selected || selected.disabled) {
+                categoryInput.value = firstAvailable?.value || '';
+            }
+
+            updateIdentityFields();
+            useCatalogPrice();
+        };
+
+        const recalculateBillingSummary = () => {
+            const totals = {};
+            let grandTotal = 0;
+
+            for (let day = 1; day <= 31; day++) {
+                totals[day] = { employee: 0, hotel_guest: 0 };
+            }
+
+            gridInputs.forEach((input) => {
+                const day = Number.parseInt(input.dataset.gridDay || '0', 10);
+                const type = input.dataset.gridBillingType === 'employee' ? 'employee' : 'hotel_guest';
+                if (day >= 1 && day <= 31) totals[day][type] += parseMoney(input.value);
+            });
+
+            const subtotals = { employee: 0, hotel_guest: 0 };
+            Object.entries(totals).forEach(([day, row]) => {
+                const dayTotal = row.employee + row.hotel_guest;
+                subtotals.employee += row.employee;
+                subtotals.hotel_guest += row.hotel_guest;
+                grandTotal += dayTotal;
+
+                document.querySelector(`[data-billing-summary-day="${day}"][data-billing-summary-type="employee"]`).textContent = formatCurrency(row.employee);
+                document.querySelector(`[data-billing-summary-day="${day}"][data-billing-summary-type="hotel_guest"]`).textContent = formatCurrency(row.hotel_guest);
+                document.querySelector(`[data-billing-summary-day-total="${day}"]`).textContent = formatCurrency(dayTotal);
+            });
+
+            document.querySelector('[data-billing-summary-subtotal="employee"]').textContent = formatCurrency(subtotals.employee);
+            document.querySelector('[data-billing-summary-subtotal="hotel_guest"]').textContent = formatCurrency(subtotals.hotel_guest);
+            document.querySelector('[data-billing-summary-grand-total]').textContent = formatCurrency(grandTotal);
+        };
+
         const addToGrid = () => {
             const day = dayInput.value;
             const category = categoryInput.value;
             const total = currentTotal();
             const target = document.querySelector(`[data-grid-day="${day}"][data-grid-category="${category}"]`);
             const detailList = document.querySelector(`[data-detail-day="${day}"][data-detail-category="${category}"]`);
-            const selectedLabel = categoryInput.options[categoryInput.selectedIndex]?.text || 'Item';
+            const selectedOption = categoryInput.options[categoryInput.selectedIndex];
+            const selectedLabel = selectedOption?.dataset.itemLabel || selectedOption?.text || 'Item';
+            const billingType = billingTypeInput.value;
+            const identityGroup = activeIdentityGroup();
+            const personName = identityGroup?.querySelector('[data-item-person-name]')?.value.trim() || '';
+            const referenceNumber = identityGroup?.querySelector('[data-item-reference-number]')?.value.trim() || '';
+            const departmentNumber = identityGroup?.querySelector('[data-item-department-number]')?.value.trim() || '';
+            const billingLabel = billingType === 'employee' ? 'Employé' : 'Client de l’hôtel';
+            const referenceLabel = billingType === 'employee' ? 'Étiquette' : 'Chambre';
 
-            if (! target || ! detailList || total <= 0) return;
+            if (! target || ! detailList || total <= 0) {
+                if (itemError) {
+                    itemError.textContent = 'Choisis un item et une quantité supérieure à zéro.';
+                    itemError.hidden = false;
+                }
+                return;
+            }
+
+            if (! personName || ! referenceNumber) {
+                if (itemError) {
+                    itemError.textContent = billingType === 'employee'
+                        ? 'Entre le nom de l’employé et son numéro d’étiquette.'
+                        : 'Entre le nom du client et son numéro de chambre.';
+                    itemError.hidden = false;
+                }
+                return;
+            }
+
+            if (selectedOption?.dataset.billingType !== billingType) {
+                if (itemError) {
+                    itemError.textContent = 'Le tarif choisi ne correspond pas au type de facturation.';
+                    itemError.hidden = false;
+                }
+                return;
+            }
+
+            if (itemError) itemError.hidden = true;
 
             const existing = parseMoney(target.value);
             target.value = formatMoney(existing + total);
@@ -375,13 +575,17 @@
 
             const row = document.createElement('div');
             row.className = 'rounded bg-villeneuve-mint px-2 py-1';
-            row.textContent = `Qté ${quantityInput.value || 0} × Prix unit. ${formatMoney(parseMoney(unitPriceInput.value))} $ = ${formatMoney(total)} $`;
+            row.textContent = `${billingLabel} · ${personName} · ${referenceLabel} ${referenceNumber} · Qté ${quantityInput.value || 0} × ${formatMoney(parseMoney(unitPriceInput.value))} $ = ${formatMoney(total)} $`;
             detailList.appendChild(row);
 
             const fields = {
                 label: selectedLabel,
                 quantity: quantityInput.value || '0',
                 unit_price: formatMoney(parseMoney(unitPriceInput.value)),
+                billing_type: billingType,
+                person_name: personName,
+                reference_number: referenceNumber,
+                department_number: billingType === 'employee' ? departmentNumber : '',
             };
 
             Object.entries(fields).forEach(([name, value]) => {
@@ -398,6 +602,8 @@
 
                 [
                     { value: day, className: 'p-3 font-bold' },
+                    { value: billingLabel, className: 'p-3' },
+                    { value: `${personName} · ${referenceLabel} ${referenceNumber}`, className: 'p-3' },
                     { value: selectedLabel, className: 'p-3' },
                     { value: quantityInput.value || '0', className: 'p-3 text-right' },
                     { value: `${formatMoney(parseMoney(unitPriceInput.value))} $`, className: 'p-3 text-right' },
@@ -415,13 +621,18 @@
 
             quantityInput.value = '1';
             useCatalogPrice();
+            recalculateBillingSummary();
             if (target.offsetParent !== null) target.focus();
         };
 
         quantityInput.addEventListener('input', updateTotal);
         categoryInput.addEventListener('change', useCatalogPrice);
+        billingTypeInput.addEventListener('change', updateCategories);
         addButton?.addEventListener('click', addToGrid);
-        useCatalogPrice();
+        gridInputs.forEach((input) => input.addEventListener('input', recalculateBillingSummary));
+        billingTypeInput.value = calculator.dataset.defaultBillingType;
+        updateCategories();
+        recalculateBillingSummary();
     })();
 </script>
 @endsection

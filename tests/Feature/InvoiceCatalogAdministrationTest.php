@@ -9,6 +9,7 @@ use App\Models\DailyRecord;
 use App\Models\MonthlyInvoice;
 use App\Models\UploadedDocument;
 use App\Models\User;
+use App\Services\InvoicePresentationService;
 use App\Services\MoneyFormatter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
@@ -295,18 +296,31 @@ class InvoiceCatalogAdministrationTest extends TestCase
                 'quantity' => 2,
                 'unit_price_cents' => 1295,
                 'total_cents' => 2590,
+                'billing_type' => 'hotel_guest',
+                'person_name' => 'Alex Martin',
+                'reference_number' => '478',
             ]],
             'source_type' => 'manual_monthly_grid',
         ]);
 
+        $invoice->load(['client', 'entries', 'adjustments']);
+        $presentation = app(InvoicePresentationService::class);
+        $lineItems = $presentation->lineItems($invoice);
         $html = view('pdf.monthly-invoice', [
-            'invoice' => $invoice->load(['client', 'entries', 'adjustments']),
+            'invoice' => $invoice,
             'settings' => null,
             'money' => app(MoneyFormatter::class),
+            'lineItems' => $lineItems,
+            'dailyBillingTotals' => $presentation->dailyBillingTotals($lineItems),
+            'billingSubtotals' => $presentation->billingSubtotals($lineItems),
         ])->render();
 
+        $this->assertStringContainsString('EMPLOYÉS', $html);
+        $this->assertStringContainsString('CLIENTS', $html);
         $this->assertStringContainsString('Détail des items facturés', $html);
         $this->assertStringContainsString('Complet 2 pc / Suit 2 pcs', $html);
+        $this->assertStringContainsString('Alex Martin', $html);
+        $this->assertStringContainsString('No de chambre: 478', $html);
         $this->assertStringContainsString('12,95 $', $html);
         $this->assertStringContainsString('25,90 $', $html);
         $this->assertStringNotContainsString('Item 9</th>', $html);

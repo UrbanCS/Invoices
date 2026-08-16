@@ -7,6 +7,7 @@ use App\Models\Client;
 use App\Models\ClientCategory;
 use App\Models\MonthlyInvoice;
 use App\Models\User;
+use App\Services\InvoicePresentationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -30,6 +31,7 @@ class CleaningOrderInvoiceWorkflowTest extends TestCase
         $category = ClientCategory::create([
             'client_id' => $client->id,
             'name' => 'Habit',
+            'audience' => 'employees',
             'default_price_cents' => 725,
             'is_taxable' => true,
             'is_active' => true,
@@ -144,6 +146,7 @@ class CleaningOrderInvoiceWorkflowTest extends TestCase
         $category = ClientCategory::create([
             'client_id' => $client->id,
             'name' => 'Habit',
+            'audience' => 'employees',
             'default_price_cents' => 725,
             'is_taxable' => true,
             'is_active' => true,
@@ -159,7 +162,9 @@ class CleaningOrderInvoiceWorkflowTest extends TestCase
             'client_id' => $client->id,
             'user_id' => $user->id,
             'service_date' => '2026-06-12',
+            'order_type' => 'employee',
             'employee_name' => 'Julian',
+            'employee_tag_number' => '0096',
             'department_number' => '2357',
             'status' => 'submitted',
             'subtotal_cents' => 725,
@@ -176,7 +181,9 @@ class CleaningOrderInvoiceWorkflowTest extends TestCase
         $this->actingAs($user)
             ->put(route('portal.orders.update', $order), [
                 'service_date' => '2026-06-13',
+                'order_type' => 'employee',
                 'employee_name' => 'Julian',
+                'employee_tag_number' => '0097',
                 'department_number' => '478',
                 'quantities' => [$category->id => 3],
                 'unit_price_cents' => 1,
@@ -185,10 +192,116 @@ class CleaningOrderInvoiceWorkflowTest extends TestCase
 
         $order->refresh()->load('items');
         $this->assertSame('submitted', $order->status);
+        $this->assertSame('employee', $order->order_type);
+        $this->assertSame('0097', $order->employee_tag_number);
         $this->assertSame('478', $order->department_number);
         $this->assertSame(2175, $order->subtotal_cents);
         $this->assertSame(725, $order->items->first()->unit_price_cents);
         $this->assertSame('3.00', $order->items->first()->quantity);
+    }
+
+    public function test_hotel_client_can_submit_employee_and_guest_orders_with_the_correct_fixed_prices(): void
+    {
+        $client = Client::create([
+            'name' => 'Best Western',
+            'tax_profile' => 'on_hst',
+            'default_language' => 'fr',
+        ]);
+        $employeeCategory = ClientCategory::create([
+            'client_id' => $client->id,
+            'name' => 'Pantalon employé',
+            'audience' => 'employees',
+            'default_price_cents' => 500,
+            'is_taxable' => true,
+            'is_active' => true,
+        ]);
+        $guestCategory = ClientCategory::create([
+            'client_id' => $client->id,
+            'name' => 'Pantalon client',
+            'audience' => 'gentlemen',
+            'default_price_cents' => 1150,
+            'is_taxable' => true,
+            'is_active' => true,
+        ]);
+        $user = User::create([
+            'name' => 'Client Best Western',
+            'email' => 'best-western@test.com',
+            'password' => 'password',
+            'role' => 'client',
+            'client_id' => $client->id,
+        ]);
+
+        $this->actingAs($user)
+            ->post(route('portal.orders.store'), [
+                'service_date' => '2026-06-03',
+                'order_type' => 'employee',
+                'new_employee_name' => 'Julian',
+                'employee_tag_number' => 'ET-42',
+                'department_number' => 'Entretien',
+                'quantities' => [$employeeCategory->id => 2],
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->actingAs($user)
+            ->post(route('portal.orders.store'), [
+                'service_date' => '2026-06-04',
+                'order_type' => 'hotel_guest',
+                'guest_name' => 'Alex Martin',
+                'room_number' => '478',
+                'quantities' => [$guestCategory->id => 2],
+            ])
+            ->assertSessionHasNoErrors();
+
+        $employeeOrder = CleaningOrder::where('order_type', 'employee')->firstOrFail();
+        $guestOrder = CleaningOrder::where('order_type', 'hotel_guest')->firstOrFail();
+
+        $this->assertSame('Julian', $employeeOrder->employee_name);
+        $this->assertSame('ET-42', $employeeOrder->employee_tag_number);
+        $this->assertSame(1000, $employeeOrder->total_cents);
+        $this->assertSame(500, $employeeOrder->items()->firstOrFail()->unit_price_cents);
+        $this->assertSame('Alex Martin', $guestOrder->guest_name);
+        $this->assertSame('478', $guestOrder->room_number);
+        $this->assertSame(2300, $guestOrder->total_cents);
+        $this->assertSame(1150, $guestOrder->items()->firstOrFail()->unit_price_cents);
+    }
+
+    public function test_hotel_client_cannot_use_a_guest_price_for_an_employee_order(): void
+    {
+        $client = Client::create([
+            'name' => 'Best Western',
+            'tax_profile' => 'on_hst',
+            'default_language' => 'fr',
+        ]);
+        $guestCategory = ClientCategory::create([
+            'client_id' => $client->id,
+            'name' => 'Manteau client',
+            'audience' => 'ladies',
+            'default_price_cents' => 2500,
+            'is_taxable' => true,
+            'is_active' => true,
+        ]);
+        $user = User::create([
+            'name' => 'Client Best Western',
+            'email' => 'best-western-reject@test.com',
+            'password' => 'password',
+            'role' => 'client',
+            'client_id' => $client->id,
+        ]);
+
+        $this->actingAs($user)
+            ->from(route('portal.orders.create'))
+            ->post(route('portal.orders.store'), [
+                'service_date' => '2026-06-03',
+                'order_type' => 'employee',
+                'new_employee_name' => 'Julian',
+                'employee_tag_number' => 'ET-42',
+                'department_number' => 'Entretien',
+                'quantities' => [$guestCategory->id => 1],
+            ])
+            ->assertRedirect(route('portal.orders.create'))
+            ->assertSessionHasErrors('quantities');
+
+        $this->assertDatabaseCount('cleaning_orders', 0);
     }
 
     public function test_client_order_form_groups_catalog_items_and_keeps_prices_read_only(): void
@@ -427,7 +540,7 @@ class CleaningOrderInvoiceWorkflowTest extends TestCase
             ->assertOk()
             ->assertSee('Items ajoutés à la facture')
             ->assertSee('Aucun item ajouté pour l’instant.')
-            ->assertSee('Afficher la grille mensuelle détaillée (9 items)');
+            ->assertSee('Le catalogue contient 9 items.');
     }
 
     public function test_saved_invoice_uses_a_readable_summary_for_a_large_catalog(): void
@@ -484,7 +597,7 @@ class CleaningOrderInvoiceWorkflowTest extends TestCase
             ->assertSee('Suit 2 pc / Complet 2 pc')
             ->assertSee('12,95 $')
             ->assertSee('25,90 $')
-            ->assertSee('Afficher la grille mensuelle détaillée (9 items)');
+            ->assertSee('Afficher la grille technique par item');
     }
 
     public function test_client_cannot_correct_an_order_after_it_is_approved(): void
@@ -673,5 +786,107 @@ class CleaningOrderInvoiceWorkflowTest extends TestCase
         $this->assertDatabaseHas('cleaning_orders', ['id' => $firstOrder->id, 'status' => 'invoiced', 'monthly_invoice_id' => $invoice->id]);
         $this->assertDatabaseHas('cleaning_orders', ['id' => $secondOrder->id, 'status' => 'invoiced', 'monthly_invoice_id' => $invoice->id]);
         $this->assertDatabaseHas('cleaning_orders', ['id' => $pendingOrder->id, 'status' => 'submitted', 'monthly_invoice_id' => null]);
+    }
+
+    public function test_monthly_invoice_from_orders_separates_employee_and_hotel_guest_details(): void
+    {
+        $admin = User::create([
+            'name' => 'Admin',
+            'email' => 'admin-hotel-billing@test.com',
+            'password' => 'password',
+            'role' => 'super_admin',
+        ]);
+        $client = Client::create([
+            'name' => 'Best Western',
+            'tax_profile' => 'on_hst',
+            'default_language' => 'fr',
+        ]);
+        $employeeCategory = ClientCategory::create([
+            'client_id' => $client->id,
+            'name' => 'Pantalon employé',
+            'audience' => 'employees',
+            'default_price_cents' => 500,
+            'is_taxable' => true,
+            'is_active' => true,
+        ]);
+        $guestCategory = ClientCategory::create([
+            'client_id' => $client->id,
+            'name' => 'Pantalon client',
+            'audience' => 'gentlemen',
+            'default_price_cents' => 1150,
+            'is_taxable' => true,
+            'is_active' => true,
+        ]);
+
+        $employeeOrder = CleaningOrder::create([
+            'client_id' => $client->id,
+            'service_date' => '2026-06-03',
+            'order_type' => 'employee',
+            'employee_name' => 'Julian',
+            'employee_tag_number' => 'ET-42',
+            'department_number' => 'Entretien',
+            'status' => 'reviewed',
+            'subtotal_cents' => 1000,
+            'total_cents' => 1000,
+        ]);
+        $employeeOrder->items()->create([
+            'client_category_id' => $employeeCategory->id,
+            'item_name_snapshot' => 'Pantalon employé',
+            'unit_price_cents' => 500,
+            'quantity' => 2,
+            'total_cents' => 1000,
+        ]);
+
+        $guestOrder = CleaningOrder::create([
+            'client_id' => $client->id,
+            'service_date' => '2026-06-04',
+            'order_type' => 'hotel_guest',
+            'guest_name' => 'Alex Martin',
+            'room_number' => '478',
+            'status' => 'reviewed',
+            'subtotal_cents' => 1150,
+            'total_cents' => 1150,
+        ]);
+        $guestOrder->items()->create([
+            'client_category_id' => $guestCategory->id,
+            'item_name_snapshot' => 'Pantalon client',
+            'unit_price_cents' => 1150,
+            'quantity' => 1,
+            'total_cents' => 1150,
+        ]);
+
+        $response = $this->actingAs($admin)->post(route('account-statements.create-invoice'), [
+            'month' => 6,
+            'year' => 2026,
+            'client_id' => $client->id,
+        ]);
+
+        $invoice = MonthlyInvoice::with(['entries', 'client'])->firstOrFail();
+        $response->assertRedirect(route('monthly-invoices.show', $invoice));
+
+        $presentation = app(InvoicePresentationService::class);
+        $lineItems = $presentation->lineItems($invoice);
+        $dailyTotals = $presentation->dailyBillingTotals($lineItems);
+
+        $this->assertSame([
+            'employee' => 1000,
+            'hotel_guest' => 1150,
+        ], $presentation->billingSubtotals($lineItems));
+        $this->assertSame(1000, $dailyTotals->get(3)['employee']);
+        $this->assertSame(1150, $dailyTotals->get(4)['hotel_guest']);
+        $this->assertSame('Julian', $lineItems->firstWhere('billing_type', 'employee')['person_name']);
+        $this->assertSame('ET-42', $lineItems->firstWhere('billing_type', 'employee')['reference_number']);
+        $this->assertSame('Alex Martin', $lineItems->firstWhere('billing_type', 'hotel_guest')['person_name']);
+        $this->assertSame('478', $lineItems->firstWhere('billing_type', 'hotel_guest')['reference_number']);
+
+        $this->actingAs($admin)
+            ->get(route('monthly-invoices.show', $invoice))
+            ->assertOk()
+            ->assertSee('EMPLOYÉS')
+            ->assertSee('CLIENTS')
+            ->assertSee('Julian')
+            ->assertSee('ET-42')
+            ->assertSee('Alex Martin')
+            ->assertSee('478');
     }
 }

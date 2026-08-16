@@ -84,8 +84,11 @@ class AdminCleaningOrderController extends Controller
 
             $notes = collect([
                 'Commande client #'.$order->id,
-                'Employé: '.$order->employee_name,
-                $order->department_number ? 'No de département: '.$order->department_number : null,
+                $order->orderTypeLabel().': '.$order->billingName(),
+                $order->billingReferenceLabel().': '.$order->billingReference(),
+                $order->isEmployeeOrder() && $order->department_number
+                    ? 'No de département: '.$order->department_number
+                    : null,
                 $order->notes,
             ])->filter()->implode("\n");
 
@@ -116,6 +119,7 @@ class AdminCleaningOrderController extends Controller
                         'quantity' => rtrim(rtrim(number_format((float) $item->quantity, 2, '.', ''), '0'), '.'),
                         'unit_price_cents' => $item->unit_price_cents,
                         'total_cents' => $item->total_cents,
+                        ...$order->invoiceIdentitySnapshot(),
                     ])->values()->all(),
                     'source_type' => 'manual_monthly_grid',
                 ]);

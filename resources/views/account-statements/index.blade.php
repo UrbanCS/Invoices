@@ -78,8 +78,8 @@
         <tr>
             <th class="border bg-villeneuve-mint p-2 text-left">Date</th>
             <th class="border bg-villeneuve-mint p-2 text-left">Client</th>
-            <th class="border bg-villeneuve-mint p-2 text-left">Employé</th>
-            <th class="border bg-villeneuve-mint p-2 text-left">No de département</th>
+            <th class="border bg-villeneuve-mint p-2 text-left">Type</th>
+            <th class="border bg-villeneuve-mint p-2 text-left">Nom / référence</th>
             <th class="border bg-villeneuve-mint p-2 text-left">Items</th>
             <th class="border bg-villeneuve-mint p-2 text-right">Sous-total</th>
             <th class="border bg-villeneuve-mint p-2 text-right">Ajustement</th>
@@ -90,8 +90,16 @@
             <tr>
                 <td class="border p-2">{{ $order->service_date->format('Y-m-d') }}</td>
                 <td class="border p-2">{{ $order->client?->name }}</td>
-                <td class="border p-2">{{ $order->employee_name }}</td>
-                <td class="border p-2">{{ $order->department_number ?: '—' }}</td>
+                <td class="border p-2">{{ $order->orderTypeLabel() }}</td>
+                <td class="border p-2">
+                    <strong>{{ $order->billingName() ?: '—' }}</strong>
+                    <span class="block text-xs text-stone-500">
+                        {{ $order->billingReferenceLabel() }}: {{ $order->billingReference() ?: '—' }}
+                    </span>
+                    @if($order->isEmployeeOrder() && $order->department_number)
+                        <span class="block text-xs text-stone-500">Département: {{ $order->department_number }}</span>
+                    @endif
+                </td>
                 <td class="border p-2">
                     <div class="space-y-1">
                         @foreach($order->items as $item)

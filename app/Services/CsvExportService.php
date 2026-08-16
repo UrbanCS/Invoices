@@ -7,6 +7,11 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class CsvExportService
 {
+    public function __construct(
+        private readonly InvoicePresentationService $presentation,
+    ) {
+    }
+
     public function invoices($query): StreamedResponse
     {
         return response()->streamDownload(function () use ($query) {
@@ -34,9 +39,35 @@ class CsvExportService
     {
         return response()->streamDownload(function () use ($invoice) {
             $out = fopen('php://output', 'w');
-            fputcsv($out, ['Jour', 'Catégorie', 'Montant']);
-            foreach ($invoice->entries()->orderBy('service_day')->get() as $entry) {
-                fputcsv($out, [$entry->service_day, $entry->category_name_snapshot, $this->dollars($entry->amount_cents)]);
+            $invoice->loadMissing('entries');
+            fputcsv($out, [
+                'Jour',
+                'Type',
+                'Nom',
+                'No étiquette / chambre',
+                'No département',
+                'Service',
+                'Item',
+                'Quantité',
+                'Prix unitaire',
+                'Total',
+            ]);
+
+            foreach ($this->presentation->lineItems($invoice) as $lineItem) {
+                fputcsv($out, [
+                    $lineItem['day'],
+                    $lineItem['billing_label'],
+                    $lineItem['person_name'],
+                    $lineItem['reference_number'],
+                    $lineItem['department_number'],
+                    $lineItem['service'],
+                    $lineItem['label'],
+                    $lineItem['quantity'],
+                    $lineItem['unit_price_cents'] !== null
+                        ? $this->dollars($lineItem['unit_price_cents'])
+                        : null,
+                    $this->dollars($lineItem['total_cents']),
+                ]);
             }
             fclose($out);
         }, 'invoice-'.$invoice->invoice_number.'.csv', ['Content-Type' => 'text/csv']);

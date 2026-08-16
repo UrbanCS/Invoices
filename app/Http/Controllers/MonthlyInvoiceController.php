@@ -15,6 +15,7 @@ use App\Services\InvoiceApprovalService;
 use App\Services\InvoiceCalculationService;
 use App\Services\InvoiceNumberService;
 use App\Services\InvoicePdfService;
+use App\Services\InvoicePresentationService;
 use App\Services\MoneyFormatter;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -143,10 +144,23 @@ class MonthlyInvoiceController extends Controller
         );
     }
 
-    public function show(MonthlyInvoice $invoice, MoneyFormatter $money): View
+    public function show(
+        MonthlyInvoice $invoice,
+        MoneyFormatter $money,
+        InvoicePresentationService $presentation,
+    ): View
     {
         $this->authorizeInvoice($invoice);
-        return view('monthly-invoices.show', ['invoice' => $invoice->load('client', 'entries', 'adjustments'), 'money' => $money]);
+        $invoice->load('client', 'entries', 'adjustments');
+        $lineItems = $presentation->lineItems($invoice);
+
+        return view('monthly-invoices.show', [
+            'invoice' => $invoice,
+            'money' => $money,
+            'lineItems' => $lineItems,
+            'dailyBillingTotals' => $presentation->dailyBillingTotals($lineItems),
+            'billingSubtotals' => $presentation->billingSubtotals($lineItems),
+        ]);
     }
 
     public function edit(MonthlyInvoice $invoice): View
@@ -369,7 +383,8 @@ class MonthlyInvoiceController extends Controller
 
                 $itemDetails = $this->itemDetails(
                     $request->input("details.$day.$categoryId", []),
-                    $money
+                    $money,
+                    $category->audience === 'employees' ? 'employee' : 'hotel_guest',
                 );
 
                 $invoice->entries()->create([
@@ -387,16 +402,37 @@ class MonthlyInvoiceController extends Controller
         return $createdEntries;
     }
 
-    private function itemDetails(array $rows, MoneyFormatter $money): array
+    private function itemDetails(array $rows, MoneyFormatter $money, string $defaultBillingType): array
     {
         return collect($rows)
-            ->map(function (array $row) use ($money) {
+            ->map(function (array $row) use ($money, $defaultBillingType) {
                 $quantity = (float) str_replace(',', '.', (string) ($row['quantity'] ?? 0));
                 $unitPriceCents = $money->parse($row['unit_price'] ?? null);
                 $totalCents = (int) round($quantity * $unitPriceCents);
+                $hasExplicitBillingType = array_key_exists('billing_type', $row);
+                $billingType = $hasExplicitBillingType
+                    && in_array($row['billing_type'], ['employee', 'hotel_guest'], true)
+                        ? $row['billing_type']
+                        : $defaultBillingType;
+                $personName = trim((string) ($row['person_name'] ?? ''));
+                $referenceNumber = trim((string) ($row['reference_number'] ?? ''));
 
                 if ($quantity <= 0 || $unitPriceCents <= 0 || $totalCents <= 0) {
                     return null;
+                }
+
+                if ($hasExplicitBillingType && $billingType !== $defaultBillingType) {
+                    throw ValidationException::withMessages([
+                        'details' => 'Le type Employé ou Client doit correspondre au tarif de l’item choisi.',
+                    ]);
+                }
+
+                if ($hasExplicitBillingType && ($personName === '' || $referenceNumber === '')) {
+                    throw ValidationException::withMessages([
+                        'details' => $billingType === 'employee'
+                            ? 'Chaque item EMPLOYÉS doit avoir un nom d’employé et un numéro d’étiquette.'
+                            : 'Chaque item CLIENTS doit avoir un nom de client et un numéro de chambre.',
+                    ]);
                 }
 
                 return [
@@ -404,6 +440,12 @@ class MonthlyInvoiceController extends Controller
                     'quantity' => rtrim(rtrim(number_format($quantity, 2, '.', ''), '0'), '.'),
                     'unit_price_cents' => $unitPriceCents,
                     'total_cents' => $totalCents,
+                    'billing_type' => $billingType,
+                    'person_name' => $personName ?: null,
+                    'reference_number' => $referenceNumber ?: null,
+                    'department_number' => $billingType === 'employee'
+                        ? (trim((string) ($row['department_number'] ?? '')) ?: null)
+                        : null,
                 ];
             })
             ->filter()

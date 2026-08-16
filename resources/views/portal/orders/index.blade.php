@@ -12,8 +12,9 @@
     <table class="table w-full">
         <tr>
             <th>Date</th>
-            <th>Employé</th>
-            <th>No de département</th>
+            <th>Type</th>
+            <th>Nom</th>
+            <th>Référence</th>
             <th>Statut</th>
             <th class="text-right">Total</th>
             <th></th>
@@ -21,8 +22,14 @@
         @forelse($orders as $order)
             <tr>
                 <td>{{ $order->service_date->format('Y-m-d') }}</td>
-                <td>{{ $order->employee_name }}</td>
-                <td>{{ $order->department_number ?: '—' }}</td>
+                <td>{{ $order->orderTypeLabel() }}</td>
+                <td>{{ $order->billingName() ?: '—' }}</td>
+                <td>
+                    {{ $order->billingReferenceLabel() }}: {{ $order->billingReference() ?: '—' }}
+                    @if($order->isEmployeeOrder() && $order->department_number)
+                        <span class="block text-xs text-stone-500">Département: {{ $order->department_number }}</span>
+                    @endif
+                </td>
                 <td>{{ $statuses[$order->status] ?? $order->status }}</td>
                 <td class="text-right">{{ $money->format($order->total_cents, auth()->user()->client->default_language ?? 'fr') }}</td>
                 <td class="text-right">
@@ -36,7 +43,7 @@
             </tr>
         @empty
             <tr>
-                <td colspan="6" class="text-center text-stone-600">Aucune commande pour l’instant.</td>
+                <td colspan="7" class="text-center text-stone-600">Aucune commande pour l’instant.</td>
             </tr>
         @endforelse
     </table>

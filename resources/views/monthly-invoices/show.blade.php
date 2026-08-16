@@ -10,43 +10,7 @@
         'cancelled' => 'Annulée',
     ];
     $categories = collect($invoice->category_snapshot ?? []);
-    $singleCategory = $categories->count() === 1;
-    $useCompactLayout = $categories->count() > 8;
     $invoiceLanguage = $invoice->client?->default_language ?? 'fr';
-    $categoriesById = $categories->keyBy(fn ($category) => (string) ($category['id'] ?? ''));
-    $lineItems = $invoice->entries
-        ->sortBy(fn ($entry) => sprintf('%02d-%08d', $entry->service_day, $entry->id))
-        ->flatMap(function ($entry) use ($categoriesById) {
-            $category = $categoriesById->get((string) $entry->client_category_id, []);
-            $serviceLabel = isset($category['service_type'])
-                ? App\Models\ClientCategory::serviceLabel($category['service_type'])
-                : null;
-            $audienceLabel = isset($category['audience'])
-                ? App\Models\ClientCategory::audienceLabel($category['audience'])
-                : null;
-            $details = collect($entry->item_details ?? []);
-
-            if ($details->isEmpty()) {
-                return $entry->amount_cents > 0 ? [[
-                    'day' => $entry->service_day,
-                    'service' => collect([$serviceLabel, $audienceLabel])->filter()->join(' · '),
-                    'label' => $category['name'] ?? $entry->category_name_snapshot,
-                    'quantity' => null,
-                    'unit_price_cents' => null,
-                    'total_cents' => $entry->amount_cents,
-                ]] : [];
-            }
-
-            return $details->map(fn ($detail) => [
-                'day' => $entry->service_day,
-                'service' => collect([$serviceLabel, $audienceLabel])->filter()->join(' · '),
-                'label' => $detail['label'] ?? $category['name'] ?? $entry->category_name_snapshot,
-                'quantity' => $detail['quantity'] ?? null,
-                'unit_price_cents' => $detail['unit_price_cents'] ?? null,
-                'total_cents' => $detail['total_cents'] ?? 0,
-            ])->all();
-        })
-        ->values();
 @endphp
 
 <div class="flex flex-wrap items-center justify-between gap-3">
@@ -67,23 +31,67 @@
 </div>
 
 <div class="mt-6 grid gap-6 lg:grid-cols-[1fr_340px]">
-    <section class="panel overflow-x-auto p-6">
-        @if($useCompactLayout)
+    <div class="space-y-6">
+        <section class="panel overflow-x-auto p-6">
             <div>
-                <h2 class="text-xl font-bold text-villeneuve-forest">Détail des items facturés</h2>
+                <h2 class="text-xl font-bold text-villeneuve-forest">Répartition mensuelle</h2>
                 <p class="mt-1 text-sm text-stone-600">
-                    Seuls les items ajoutés à la facture sont affichés.
+                    Les commandes d’employés et de clients de l’hôtel sont présentées séparément.
                 </p>
             </div>
+
+            <table class="mt-4 w-full border-collapse text-sm">
+                <thead>
+                    <tr>
+                        <th class="border bg-villeneuve-mint p-2 text-left">Jour</th>
+                        <th class="border bg-villeneuve-mint p-2 text-right">EMPLOYÉS</th>
+                        <th class="border bg-villeneuve-mint p-2 text-right">CLIENTS</th>
+                        <th class="border bg-villeneuve-mint p-2 text-right">Total du jour</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for($day = 1; $day <= 31; $day++)
+                        @php($daily = $dailyBillingTotals->get($day))
+                        <tr>
+                            <td class="border p-2 font-bold">{{ $day }}</td>
+                            <td class="border p-2 text-right tabular-nums">
+                                {{ $daily['employee'] ? $money->format($daily['employee'], $invoiceLanguage) : '' }}
+                            </td>
+                            <td class="border p-2 text-right tabular-nums">
+                                {{ $daily['hotel_guest'] ? $money->format($daily['hotel_guest'], $invoiceLanguage) : '' }}
+                            </td>
+                            <td class="border p-2 text-right font-semibold tabular-nums">
+                                {{ array_sum($daily) ? $money->format(array_sum($daily), $invoiceLanguage) : '' }}
+                            </td>
+                        </tr>
+                    @endfor
+                </tbody>
+                <tfoot>
+                    <tr class="font-black text-villeneuve-forest">
+                        <td class="border bg-villeneuve-mint p-2">Sous-totaux</td>
+                        <td class="border bg-villeneuve-mint p-2 text-right">{{ $money->format($billingSubtotals['employee'], $invoiceLanguage) }}</td>
+                        <td class="border bg-villeneuve-mint p-2 text-right">{{ $money->format($billingSubtotals['hotel_guest'], $invoiceLanguage) }}</td>
+                        <td class="border bg-villeneuve-mint p-2 text-right">{{ $money->format(array_sum($billingSubtotals), $invoiceLanguage) }}</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </section>
+
+        <section class="panel overflow-x-auto p-6">
+            <h2 class="text-xl font-bold text-villeneuve-forest">Détail des items facturés</h2>
+            <p class="mt-1 text-sm text-stone-600">
+                Le nom et la référence sont conservés avec chaque item de la facture.
+            </p>
 
             <table class="mt-4 w-full text-sm">
                 <thead>
                     <tr>
                         <th class="bg-villeneuve-mint p-3 text-left">Jour</th>
-                        <th class="bg-villeneuve-mint p-3 text-left">Service</th>
+                        <th class="bg-villeneuve-mint p-3 text-left">Type</th>
+                        <th class="bg-villeneuve-mint p-3 text-left">Nom / référence</th>
                         <th class="bg-villeneuve-mint p-3 text-left">Item</th>
-                        <th class="bg-villeneuve-mint p-3 text-right">Quantité</th>
-                        <th class="bg-villeneuve-mint p-3 text-right">Prix unitaire</th>
+                        <th class="bg-villeneuve-mint p-3 text-right">Qté</th>
+                        <th class="bg-villeneuve-mint p-3 text-right">Prix unit.</th>
                         <th class="bg-villeneuve-mint p-3 text-right">Total</th>
                     </tr>
                 </thead>
@@ -91,14 +99,24 @@
                     @forelse($lineItems as $lineItem)
                         <tr class="border-t border-villeneuve-line">
                             <td class="p-3 font-bold">{{ $lineItem['day'] }}</td>
-                            <td class="p-3 text-xs text-stone-600">{{ $lineItem['service'] ?: '—' }}</td>
-                            <td class="p-3 font-semibold">{{ $lineItem['label'] }}</td>
-                            <td class="p-3 text-right">
-                                @if($lineItem['quantity'] !== null)
-                                    {{ rtrim(rtrim(number_format((float) $lineItem['quantity'], 2, ',', ' '), '0'), ',') }}
-                                @else
-                                    —
+                            <td class="p-3">{{ $lineItem['billing_label'] }}</td>
+                            <td class="p-3">
+                                <strong>{{ $lineItem['person_name'] ?: '—' }}</strong>
+                                <span class="block text-xs text-stone-500">
+                                    {{ $lineItem['reference_label'] }}: {{ $lineItem['reference_number'] ?: '—' }}
+                                </span>
+                                @if($lineItem['department_number'])
+                                    <span class="block text-xs text-stone-500">Département: {{ $lineItem['department_number'] }}</span>
                                 @endif
+                            </td>
+                            <td class="p-3">
+                                <strong>{{ $lineItem['label'] }}</strong>
+                                @if($lineItem['service'])
+                                    <span class="block text-xs text-stone-500">{{ $lineItem['service'] }}</span>
+                                @endif
+                            </td>
+                            <td class="p-3 text-right">
+                                {{ $lineItem['quantity'] !== null ? rtrim(rtrim(number_format((float) $lineItem['quantity'], 2, ',', ' '), '0'), ',') : '—' }}
                             </td>
                             <td class="p-3 text-right">
                                 {{ $lineItem['unit_price_cents'] !== null ? $money->format($lineItem['unit_price_cents'], $invoiceLanguage) : '—' }}
@@ -107,75 +125,53 @@
                         </tr>
                     @empty
                         <tr>
-                            <td class="p-6 text-center text-stone-500" colspan="6">Aucun item facturé.</td>
+                            <td class="p-6 text-center text-stone-500" colspan="7">Aucun item facturé.</td>
                         </tr>
                     @endforelse
                 </tbody>
             </table>
+        </section>
 
-            <details class="mt-6 border border-villeneuve-line p-4">
-                <summary class="cursor-pointer font-bold text-villeneuve-forest">
-                    Afficher la grille mensuelle détaillée ({{ $categories->count() }} items)
-                </summary>
-                <p class="mt-2 text-sm text-stone-600">
-                    Cette grille est conservée pour les vérifications avancées.
-                </p>
-        @endif
-
-        <table class="w-full table-fixed border-collapse text-sm">
-            <tr>
-                <th class="w-20 border border-villeneuve-line bg-villeneuve-mint px-3 py-2 text-left text-xs font-bold uppercase text-villeneuve-forest">Jour</th>
-                @foreach($categories as $category)
-                    <th class="border border-villeneuve-line bg-villeneuve-mint px-3 py-2 text-center text-xs font-bold uppercase text-villeneuve-forest">
-                        @if(! $singleCategory && isset($category['service_type'], $category['audience']))
-                            <span class="mb-1 block text-[9px] font-semibold normal-case text-stone-500">
-                                {{ App\Models\ClientCategory::serviceLabel($category['service_type']) }}
-                                · {{ App\Models\ClientCategory::audienceLabel($category['audience']) }}
-                            </span>
-                        @endif
-                        {{ $singleCategory ? 'Montant' : $category['name'] }}
-                    </th>
-                @endforeach
-            </tr>
-            @for($day = 1; $day <= 31; $day++)
-                <tr>
-                    <td class="border border-villeneuve-line px-3 py-2 font-bold">{{ $day }}</td>
-                    @foreach($categories as $category)
-                        @php($cellEntries = $invoice->entries->where('service_day', $day)->where('client_category_id', $category['id']))
-                        @php($sum = $cellEntries->sum('amount_cents'))
-                        <td class="border border-villeneuve-line px-3 py-2 text-right tabular-nums">
-                            @if($sum)
-                                <div class="font-semibold">{{ $money->format($sum, $invoiceLanguage) }}</div>
-                            @endif
-                            @foreach($cellEntries as $entry)
-                                @foreach($entry->item_details ?? [] as $detail)
-                                    <div class="mt-1 text-xs leading-snug text-stone-600">
-                                        Qté {{ $detail['quantity'] ?? '' }}
-                                        × Prix unit. {{ $money->format($detail['unit_price_cents'] ?? 0, $invoiceLanguage) }}
-                                        = {{ $money->format($detail['total_cents'] ?? 0, $invoiceLanguage) }}
-                                    </div>
-                                @endforeach
+        @if($categories->isNotEmpty())
+            <details class="panel overflow-x-auto p-5">
+                <summary class="cursor-pointer font-bold text-villeneuve-forest">Afficher la grille technique par item</summary>
+                <p class="mt-2 text-sm text-stone-600">Cette vue sert aux vérifications et corrections administratives avancées.</p>
+                <table class="mt-4 w-full border-collapse text-xs">
+                    <thead>
+                        <tr>
+                            <th class="border bg-villeneuve-mint p-2">Jour</th>
+                            @foreach($categories as $category)
+                                <th class="border bg-villeneuve-mint p-2 text-right">{{ $category['name'] ?? 'Item' }}</th>
                             @endforeach
-                        </td>
-                    @endforeach
-                </tr>
-            @endfor
-        </table>
-
-        @if($useCompactLayout)
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for($day = 1; $day <= 31; $day++)
+                            <tr>
+                                <td class="border p-2 font-bold">{{ $day }}</td>
+                                @foreach($categories as $category)
+                                    @php($sum = $invoice->entries->where('service_day', $day)->where('client_category_id', $category['id'] ?? null)->sum('amount_cents'))
+                                    <td class="border p-2 text-right">{{ $sum ? $money->format($sum, $invoiceLanguage) : '' }}</td>
+                                @endforeach
+                            </tr>
+                        @endfor
+                    </tbody>
+                </table>
             </details>
         @endif
-    </section>
+    </div>
 
-    <aside class="panel p-6">
+    <aside class="panel h-fit p-6">
         <h2 class="text-xl font-bold text-villeneuve-forest">Totaux</h2>
         <dl class="mt-4 space-y-3">
-            <div class="flex justify-between"><dt>Sous-total</dt><dd>{{ $money->format($invoice->subtotal_cents, $invoiceLanguage) }}</dd></div>
+            <div class="flex justify-between"><dt>Employés</dt><dd>{{ $money->format($billingSubtotals['employee'], $invoiceLanguage) }}</dd></div>
+            <div class="flex justify-between"><dt>Clients</dt><dd>{{ $money->format($billingSubtotals['hotel_guest'], $invoiceLanguage) }}</dd></div>
+            <div class="flex justify-between border-t pt-3"><dt>Sous-total</dt><dd>{{ $money->format($invoice->subtotal_cents, $invoiceLanguage) }}</dd></div>
             <div class="flex justify-between"><dt>Rabais / crédits</dt><dd>-{{ $money->format($invoice->discount_cents, $invoiceLanguage) }}</dd></div>
             @foreach($invoice->tax_profile_snapshot ?? [] as $tax)
                 <div class="flex justify-between"><dt>{{ $tax['label'] }}</dt><dd>{{ $money->format($tax['amount_cents'], $invoiceLanguage) }}</dd></div>
             @endforeach
-            <div class="border-t pt-3 flex justify-between text-xl font-black text-villeneuve-forest"><dt>Grand total</dt><dd>{{ $money->format($invoice->grand_total_cents, $invoiceLanguage) }}</dd></div>
+            <div class="flex justify-between border-t pt-3 text-xl font-black text-villeneuve-forest"><dt>Grand total</dt><dd>{{ $money->format($invoice->grand_total_cents, $invoiceLanguage) }}</dd></div>
         </dl>
 
         <div class="mt-6 grid gap-2">

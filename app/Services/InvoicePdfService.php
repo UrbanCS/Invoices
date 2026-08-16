@@ -11,6 +11,11 @@ use Illuminate\Support\Facades\Storage;
 
 class InvoicePdfService
 {
+    public function __construct(
+        private readonly InvoicePresentationService $presentation,
+    ) {
+    }
+
     public function generate(MonthlyInvoice $invoice): string
     {
         @ini_set('memory_limit', '768M');
@@ -18,11 +23,9 @@ class InvoicePdfService
 
         $invoice->load(['client', 'entries', 'adjustments']);
         $settings = BusinessSetting::first();
-        $categoryCount = count($invoice->category_snapshot ?? []);
-        $orientation = $categoryCount > 8
-            ? 'portrait'
-            : ($categoryCount > 2 ? 'landscape' : 'portrait');
+        $orientation = 'portrait';
         $workPath = storage_path('app/dompdf');
+        $lineItems = $this->presentation->lineItems($invoice);
 
         File::ensureDirectoryExists($workPath);
         File::ensureDirectoryExists(storage_path('app/public/invoices/'.$invoice->invoice_year));
@@ -31,6 +34,9 @@ class InvoicePdfService
             'invoice' => $invoice,
             'settings' => $settings,
             'money' => app(MoneyFormatter::class),
+            'lineItems' => $lineItems,
+            'dailyBillingTotals' => $this->presentation->dailyBillingTotals($lineItems),
+            'billingSubtotals' => $this->presentation->billingSubtotals($lineItems),
         ])->render();
 
         $options = new Options();

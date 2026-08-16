@@ -70,8 +70,8 @@
         <tr>
             <th>Date</th>
             <th>Client</th>
-            <th>Employé</th>
-            <th>No de département</th>
+            <th>Type / nom</th>
+            <th>Référence</th>
             <th>Items</th>
             <th>Statut</th>
             <th class="text-right">Total</th>
@@ -81,8 +81,15 @@
             <tr>
                 <td>{{ $order->service_date->format('Y-m-d') }}</td>
                 <td>{{ $order->client?->name ?? 'Client supprimé' }}</td>
-                <td>{{ $order->employee_name }}</td>
-                <td>{{ $order->department_number ?: '—' }}</td>
+                <td>
+                    {{ $order->orderTypeLabel() }}: {{ $order->billingName() ?: '—' }}
+                </td>
+                <td>
+                    {{ $order->billingReferenceLabel() }}: {{ $order->billingReference() ?: '—' }}
+                    @if($order->isEmployeeOrder() && $order->department_number)
+                        <span class="block text-xs text-stone-500">Département: {{ $order->department_number }}</span>
+                    @endif
+                </td>
                 <td>
                     @foreach($order->items as $item)
                         <div>{{ $item->item_name_snapshot }} × {{ rtrim(rtrim(number_format((float) $item->quantity, 2, ',', ' '), '0'), ',') }}</div>

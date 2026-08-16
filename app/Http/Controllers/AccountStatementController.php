@@ -135,8 +135,7 @@ class AccountStatementController extends Controller
                         'quantity' => rtrim(rtrim(number_format((float) $row['item']->quantity, 2, '.', ''), '0'), '.'),
                         'unit_price_cents' => $row['item']->unit_price_cents,
                         'total_cents' => $row['item']->total_cents,
-                        'employee_name' => $row['order']->employee_name,
-                        'department_number' => $row['order']->department_number,
+                        ...$row['order']->invoiceIdentitySnapshot(),
                     ])->values()->all(),
                     'source_type' => 'manual_monthly_grid',
                 ]);
