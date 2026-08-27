@@ -23,6 +23,7 @@ class CleaningOrder extends Model
         'employee_tag_number',
         'department_number',
         'guest_name',
+        'guest_tag_number',
         'room_number',
         'status',
         'subtotal_cents',
@@ -77,14 +78,19 @@ class CleaningOrder extends Model
         return $this->isEmployeeOrder() ? $this->employee_name : $this->guest_name;
     }
 
-    public function billingReference(): ?string
+    public function billingTagNumber(): ?string
     {
-        return $this->isEmployeeOrder() ? $this->employee_tag_number : $this->room_number;
+        return $this->isEmployeeOrder() ? $this->employee_tag_number : $this->guest_tag_number;
     }
 
-    public function billingReferenceLabel(): string
+    public function billingLocationNumber(): ?string
     {
-        return $this->isEmployeeOrder() ? 'No d’étiquette' : 'No de chambre';
+        return $this->isEmployeeOrder() ? $this->department_number : $this->room_number;
+    }
+
+    public function billingLocationLabel(): string
+    {
+        return $this->isEmployeeOrder() ? 'No de département' : 'No de chambre';
     }
 
     public function invoiceIdentitySnapshot(): array
@@ -92,8 +98,9 @@ class CleaningOrder extends Model
         return [
             'billing_type' => $this->isEmployeeOrder() ? 'employee' : 'hotel_guest',
             'person_name' => $this->billingName(),
-            'reference_number' => $this->billingReference(),
+            'reference_number' => $this->billingTagNumber(),
             'department_number' => $this->isEmployeeOrder() ? $this->department_number : null,
+            'room_number' => $this->isEmployeeOrder() ? null : $this->room_number,
         ];
     }
 }

@@ -167,6 +167,9 @@
                 <td><strong>{{ $lineItem['person_name'] ?: '—' }}</strong></td>
                 <td>
                     {{ $lineItem['reference_label'] }}: {{ $lineItem['reference_number'] ?: '—' }}
+                    @if($lineItem['room_number'])
+                        <br><span class="muted">No de chambre: {{ $lineItem['room_number'] }}</span>
+                    @endif
                     @if($lineItem['department_number'])
                         <br><span class="muted">Dépt.: {{ $lineItem['department_number'] }}</span>
                     @endif

@@ -74,7 +74,7 @@
                 </p>
             </div>
             <button type="button" class="btn btn-secondary" data-item-add>
-                {{ $useCompactGrid ? 'Ajouter à la facture' : 'Ajouter à la grille' }}
+                Ajouter à la facture
             </button>
         </div>
         <div class="mt-4 grid gap-3 md:grid-cols-6" data-item-calculator data-default-billing-type="{{ $defaultBillingType }}">
@@ -122,6 +122,29 @@
             </div>
         </div>
 
+        <div class="mt-3 flex justify-end">
+            <button type="button" class="btn btn-secondary" data-item-stage>Ajouter item</button>
+        </div>
+
+        <div class="mt-4 overflow-hidden rounded border border-villeneuve-line" data-pending-items hidden>
+            <div class="bg-villeneuve-mint px-4 py-3">
+                <h3 class="font-bold text-villeneuve-forest">Items de la même journée à ajouter</h3>
+                <p class="mt-1 text-xs text-stone-600">Ajoute tous les items, puis confirme-les ensemble avec « Ajouter à la facture ».</p>
+            </div>
+            <table class="w-full text-sm">
+                <thead>
+                    <tr>
+                        <th class="p-3 text-left">Item</th>
+                        <th class="p-3 text-right">Quantité</th>
+                        <th class="p-3 text-right">Prix unitaire</th>
+                        <th class="p-3 text-right">Total</th>
+                        <th class="p-3"></th>
+                    </tr>
+                </thead>
+                <tbody data-pending-items-body></tbody>
+            </table>
+        </div>
+
         <div class="mt-4 grid gap-3 rounded border border-villeneuve-line bg-stone-50 p-4 md:grid-cols-3" data-item-identity="employee">
             <div>
                 <label class="label">Nom de l’employé</label>
@@ -137,18 +160,25 @@
             </div>
         </div>
 
-        <div class="mt-4 grid gap-3 rounded border border-villeneuve-line bg-stone-50 p-4 md:grid-cols-2" data-item-identity="hotel_guest">
+        <div class="mt-4 grid gap-3 rounded border border-villeneuve-line bg-stone-50 p-4 md:grid-cols-3" data-item-identity="hotel_guest">
             <div>
                 <label class="label">Nom du client</label>
                 <input class="mt-1 w-full" data-item-person-name placeholder="Nom du client de l’hôtel">
             </div>
             <div>
+                <label class="label">No d’étiquette</label>
+                <input class="mt-1 w-full" data-item-reference-number placeholder="Ex. 0096">
+            </div>
+            <div>
                 <label class="label">No de chambre</label>
-                <input class="mt-1 w-full" data-item-reference-number placeholder="Ex. 478">
+                <input class="mt-1 w-full" data-item-room-number placeholder="Ex. 478">
             </div>
         </div>
 
         <p class="mt-3 text-sm font-semibold text-red-700" data-item-error hidden></p>
+        <div class="mt-4 flex justify-end">
+            <button type="button" class="btn btn-primary" data-item-add>Ajouter à la facture</button>
+        </div>
     </section>
 
     <section class="panel overflow-x-auto p-6">
@@ -239,13 +269,18 @@
                             @if(collect($entry->item_details)->isNotEmpty())
                                 @foreach($entry->item_details as $detail)
                                     @php($detailBillingType = $detail['billing_type'] ?? ($entryCategory?->audience === 'employees' ? 'employee' : 'hotel_guest'))
-                                    @php($detailReferenceLabel = $detailBillingType === 'employee' ? 'No étiquette' : 'No chambre')
+                                    @php($detailHasRoomNumber = array_key_exists('room_number', $detail))
+                                    @php($detailTagNumber = $detailBillingType === 'employee' || $detailHasRoomNumber ? ($detail['reference_number'] ?? null) : null)
+                                    @php($detailRoomNumber = $detailBillingType === 'hotel_guest' ? ($detailHasRoomNumber ? ($detail['room_number'] ?? null) : ($detail['reference_number'] ?? null)) : null)
                                     <tr class="border-t border-villeneuve-line">
                                         <td class="p-3 font-bold">{{ $entry->service_day }}</td>
                                         <td class="p-3">{{ $detailBillingType === 'employee' ? 'Employé' : 'Client de l’hôtel' }}</td>
                                         <td class="p-3">
                                             <strong>{{ $detail['person_name'] ?? '—' }}</strong>
-                                            <span class="block text-xs text-stone-500">{{ $detailReferenceLabel }}: {{ $detail['reference_number'] ?? '—' }}</span>
+                                            <span class="block text-xs text-stone-500">No étiquette: {{ $detailTagNumber ?: '—' }}</span>
+                                            @if($detailRoomNumber)
+                                                <span class="block text-xs text-stone-500">No chambre: {{ $detailRoomNumber }}</span>
+                                            @endif
                                         </td>
                                         <td class="p-3">{{ $detail['label'] ?? $entryCategory?->name ?? 'Item' }}</td>
                                         <td class="p-3 text-right">{{ $detail['quantity'] ?? '—' }}</td>
@@ -315,13 +350,19 @@
                                         @php($unit = number_format(($detail['unit_price_cents'] ?? 0) / 100, 2, ',', ' '))
                                         @php($total = number_format(($detail['total_cents'] ?? 0) / 100, 2, ',', ' '))
                                         @php($detailBillingType = $detail['billing_type'] ?? ($category->audience === 'employees' ? 'employee' : 'hotel_guest'))
+                                        @php($detailHasRoomNumber = array_key_exists('room_number', $detail))
+                                        @php($detailTagNumber = $detailBillingType === 'employee' || $detailHasRoomNumber ? ($detail['reference_number'] ?? null) : null)
+                                        @php($detailRoomNumber = $detailBillingType === 'hotel_guest' ? ($detailHasRoomNumber ? ($detail['room_number'] ?? null) : ($detail['reference_number'] ?? null)) : null)
                                         <div class="rounded bg-villeneuve-mint px-2 py-1">
                                             {{ $detailBillingType === 'employee' ? 'Employé' : 'Client' }}
                                             @if($detail['person_name'] ?? null)
                                                 · {{ $detail['person_name'] }}
                                             @endif
-                                            @if($detail['reference_number'] ?? null)
-                                                · {{ $detailBillingType === 'employee' ? 'Étiquette' : 'Chambre' }} {{ $detail['reference_number'] }}
+                                            @if($detailTagNumber)
+                                                · Étiquette {{ $detailTagNumber }}
+                                            @endif
+                                            @if($detailRoomNumber)
+                                                · Chambre {{ $detailRoomNumber }}
                                             @endif
                                             · Qté {{ $detail['quantity'] ?? '' }} × {{ $unit }} $ = {{ $total }} $
                                         </div>
@@ -333,6 +374,9 @@
                                             <input type="hidden" name="details[{{ $day }}][{{ $category->id }}][{{ $detailIndex }}][person_name]" value="{{ $detail['person_name'] ?? '' }}">
                                             <input type="hidden" name="details[{{ $day }}][{{ $category->id }}][{{ $detailIndex }}][reference_number]" value="{{ $detail['reference_number'] ?? '' }}">
                                             <input type="hidden" name="details[{{ $day }}][{{ $category->id }}][{{ $detailIndex }}][department_number]" value="{{ $detail['department_number'] ?? '' }}">
+                                            @if($detailHasRoomNumber)
+                                                <input type="hidden" name="details[{{ $day }}][{{ $category->id }}][{{ $detailIndex }}][room_number]" value="{{ $detail['room_number'] ?? '' }}">
+                                            @endif
                                         @endif
                                     @endforeach
                                 </div>
@@ -424,12 +468,19 @@
         const billingTypeInput = calculator.querySelector('[data-item-billing-type]');
         const unitPriceInput = calculator.querySelector('[data-item-unit-price]');
         const totalInput = calculator.querySelector('[data-item-total]');
-        const addButton = document.querySelector('[data-item-add]');
+        const addButtons = document.querySelectorAll('[data-item-add]');
+        const stageButton = document.querySelector('[data-item-stage]');
+        const pendingItemsPanel = document.querySelector('[data-pending-items]');
+        const pendingItemsBody = document.querySelector('[data-pending-items-body]');
         const addedItemsBody = document.querySelector('[data-added-items-body]');
         const addedItemsEmpty = document.querySelector('[data-added-items-empty]');
         const itemError = document.querySelector('[data-item-error]');
         const gridInputs = document.querySelectorAll('[data-grid-day][data-grid-category]');
+        const invoiceForm = calculator.closest('form');
         let detailIndex = Date.now();
+        let pendingItems = [];
+        let pendingDay = null;
+        let pendingBillingType = null;
 
         const parseMoney = (value) => {
             const normalized = String(value || '')
@@ -462,8 +513,6 @@
             unitPriceInput.value = formatMoney(cents / 100);
             updateTotal();
         };
-
-        const activeIdentityGroup = () => document.querySelector(`[data-item-identity="${billingTypeInput.value}"]`);
 
         const updateIdentityFields = () => {
             document.querySelectorAll('[data-item-identity]').forEach((group) => {
@@ -525,73 +574,157 @@
             document.querySelector('[data-billing-summary-grand-total]').textContent = formatCurrency(grandTotal);
         };
 
-        const addToGrid = () => {
-            const day = dayInput.value;
-            const category = categoryInput.value;
-            const total = currentTotal();
-            const target = document.querySelector(`[data-grid-day="${day}"][data-grid-category="${category}"]`);
-            const detailList = document.querySelector(`[data-detail-day="${day}"][data-detail-category="${category}"]`);
+        const showItemError = (message) => {
+            if (! itemError) return;
+            itemError.textContent = message;
+            itemError.hidden = false;
+        };
+
+        const clearItemError = () => {
+            if (itemError) itemError.hidden = true;
+        };
+
+        const releasePendingBatch = () => {
+            pendingItems = [];
+            pendingDay = null;
+            pendingBillingType = null;
+            dayInput.disabled = false;
+            billingTypeInput.disabled = false;
+            if (pendingItemsPanel) pendingItemsPanel.hidden = true;
+            if (pendingItemsBody) pendingItemsBody.replaceChildren();
+        };
+
+        const renderPendingItems = () => {
+            if (! pendingItemsBody || ! pendingItemsPanel) return;
+
+            pendingItemsBody.replaceChildren();
+            pendingItemsPanel.hidden = pendingItems.length === 0;
+
+            pendingItems.forEach((item, index) => {
+                const row = document.createElement('tr');
+                row.className = 'border-t border-villeneuve-line';
+
+                [
+                    { value: item.label, className: 'p-3 font-semibold' },
+                    { value: item.quantity, className: 'p-3 text-right' },
+                    { value: formatCurrency(item.unitPriceCents / 100), className: 'p-3 text-right' },
+                    { value: formatCurrency(item.totalCents / 100), className: 'p-3 text-right font-bold' },
+                ].forEach(({ value, className }) => {
+                    const cell = document.createElement('td');
+                    cell.className = className;
+                    cell.textContent = value;
+                    row.appendChild(cell);
+                });
+
+                const actionCell = document.createElement('td');
+                actionCell.className = 'p-3 text-right';
+                const removeButton = document.createElement('button');
+                removeButton.type = 'button';
+                removeButton.className = 'font-semibold text-red-700 underline';
+                removeButton.textContent = 'Retirer';
+                removeButton.addEventListener('click', () => {
+                    pendingItems.splice(index, 1);
+                    if (pendingItems.length === 0) {
+                        releasePendingBatch();
+                    } else {
+                        renderPendingItems();
+                    }
+                });
+                actionCell.appendChild(removeButton);
+                row.appendChild(actionCell);
+                pendingItemsBody.appendChild(row);
+            });
+        };
+
+        const stageCurrentItem = () => {
+            const day = Number.parseInt(dayInput.value || '0', 10);
             const selectedOption = categoryInput.options[categoryInput.selectedIndex];
-            const selectedLabel = selectedOption?.dataset.itemLabel || selectedOption?.text || 'Item';
+            const category = categoryInput.value;
+            const quantity = Number.parseFloat(quantityInput.value || '0') || 0;
+            const unitPriceCents = Number.parseInt(selectedOption?.dataset.unitPrice || '0', 10);
+            const totalCents = Math.round(quantity * unitPriceCents);
             const billingType = billingTypeInput.value;
-            const identityGroup = activeIdentityGroup();
-            const personName = identityGroup?.querySelector('[data-item-person-name]')?.value.trim() || '';
-            const referenceNumber = identityGroup?.querySelector('[data-item-reference-number]')?.value.trim() || '';
-            const departmentNumber = identityGroup?.querySelector('[data-item-department-number]')?.value.trim() || '';
-            const billingLabel = billingType === 'employee' ? 'Employé' : 'Client de l’hôtel';
-            const referenceLabel = billingType === 'employee' ? 'Étiquette' : 'Chambre';
 
-            if (! target || ! detailList || total <= 0) {
-                if (itemError) {
-                    itemError.textContent = 'Choisis un item et une quantité supérieure à zéro.';
-                    itemError.hidden = false;
-                }
-                return;
-            }
-
-            if (! personName || ! referenceNumber) {
-                if (itemError) {
-                    itemError.textContent = billingType === 'employee'
-                        ? 'Entre le nom de l’employé et son numéro d’étiquette.'
-                        : 'Entre le nom du client et son numéro de chambre.';
-                    itemError.hidden = false;
-                }
-                return;
+            if (day < 1 || day > 31 || ! category || quantity <= 0 || unitPriceCents <= 0 || totalCents <= 0) {
+                showItemError('Choisis un jour, un item et une quantité supérieure à zéro.');
+                return false;
             }
 
             if (selectedOption?.dataset.billingType !== billingType) {
-                if (itemError) {
-                    itemError.textContent = 'Le tarif choisi ne correspond pas au type de facturation.';
-                    itemError.hidden = false;
-                }
-                return;
+                showItemError('Le tarif choisi ne correspond pas au type de facturation.');
+                return false;
             }
 
-            if (itemError) itemError.hidden = true;
+            if (pendingItems.length > 0 && (pendingDay !== day || pendingBillingType !== billingType)) {
+                showItemError('Ajoute d’abord les items en attente à la facture avant de changer le jour ou le type.');
+                return false;
+            }
 
+            if (pendingItems.length === 0) {
+                pendingDay = day;
+                pendingBillingType = billingType;
+                dayInput.disabled = true;
+                billingTypeInput.disabled = true;
+            }
+
+            pendingItems.push({
+                day: String(day),
+                category,
+                label: selectedOption?.dataset.itemLabel || selectedOption?.text || 'Item',
+                quantity: quantityInput.value || '0',
+                unitPriceCents,
+                totalCents,
+                billingType,
+            });
+
+            clearItemError();
+            renderPendingItems();
+            quantityInput.value = '1';
+            useCatalogPrice();
+            categoryInput.focus();
+
+            return true;
+        };
+
+        const appendItemToInvoice = (item, identity) => {
+            const target = document.querySelector(`[data-grid-day="${item.day}"][data-grid-category="${item.category}"]`);
+            const detailList = document.querySelector(`[data-detail-day="${item.day}"][data-detail-category="${item.category}"]`);
+            if (! target || ! detailList) return null;
+
+            const total = item.totalCents / 100;
+            const unitPrice = item.unitPriceCents / 100;
             const existing = parseMoney(target.value);
             target.value = formatMoney(existing + total);
             detailIndex++;
 
+            const referenceSummary = [
+                `Étiquette ${identity.referenceNumber}`,
+                item.billingType === 'employee' && identity.departmentNumber
+                    ? `Département ${identity.departmentNumber}`
+                    : null,
+                item.billingType === 'hotel_guest' ? `Chambre ${identity.roomNumber}` : null,
+            ].filter(Boolean).join(' · ');
+
             const row = document.createElement('div');
             row.className = 'rounded bg-villeneuve-mint px-2 py-1';
-            row.textContent = `${billingLabel} · ${personName} · ${referenceLabel} ${referenceNumber} · Qté ${quantityInput.value || 0} × ${formatMoney(parseMoney(unitPriceInput.value))} $ = ${formatMoney(total)} $`;
+            row.textContent = `${identity.billingLabel} · ${identity.personName} · ${referenceSummary} · Qté ${item.quantity} × ${formatMoney(unitPrice)} $ = ${formatMoney(total)} $`;
             detailList.appendChild(row);
 
             const fields = {
-                label: selectedLabel,
-                quantity: quantityInput.value || '0',
-                unit_price: formatMoney(parseMoney(unitPriceInput.value)),
-                billing_type: billingType,
-                person_name: personName,
-                reference_number: referenceNumber,
-                department_number: billingType === 'employee' ? departmentNumber : '',
+                label: item.label,
+                quantity: item.quantity,
+                unit_price: formatMoney(unitPrice),
+                billing_type: item.billingType,
+                person_name: identity.personName,
+                reference_number: identity.referenceNumber,
+                department_number: item.billingType === 'employee' ? identity.departmentNumber : '',
+                room_number: item.billingType === 'hotel_guest' ? identity.roomNumber : '',
             };
 
             Object.entries(fields).forEach(([name, value]) => {
                 const input = document.createElement('input');
                 input.type = 'hidden';
-                input.name = `details[${day}][${category}][${detailIndex}][${name}]`;
+                input.name = `details[${item.day}][${item.category}][${detailIndex}][${name}]`;
                 input.value = value;
                 detailList.appendChild(input);
             });
@@ -601,12 +734,12 @@
                 summaryRow.className = 'border-t border-villeneuve-line';
 
                 [
-                    { value: day, className: 'p-3 font-bold' },
-                    { value: billingLabel, className: 'p-3' },
-                    { value: `${personName} · ${referenceLabel} ${referenceNumber}`, className: 'p-3' },
-                    { value: selectedLabel, className: 'p-3' },
-                    { value: quantityInput.value || '0', className: 'p-3 text-right' },
-                    { value: `${formatMoney(parseMoney(unitPriceInput.value))} $`, className: 'p-3 text-right' },
+                    { value: item.day, className: 'p-3 font-bold' },
+                    { value: identity.billingLabel, className: 'p-3' },
+                    { value: `${identity.personName} · ${referenceSummary}`, className: 'p-3' },
+                    { value: item.label, className: 'p-3' },
+                    { value: item.quantity, className: 'p-3 text-right' },
+                    { value: `${formatMoney(unitPrice)} $`, className: 'p-3 text-right' },
                     { value: `${formatMoney(total)} $`, className: 'p-3 text-right font-bold' },
                 ].forEach(({ value, className }) => {
                     const cell = document.createElement('td');
@@ -619,17 +752,62 @@
                 if (addedItemsEmpty) addedItemsEmpty.hidden = true;
             }
 
-            quantityInput.value = '1';
+            return target;
+        };
+
+        const addToInvoice = () => {
+            if (pendingItems.length === 0 && ! stageCurrentItem()) return;
+
+            const billingType = pendingBillingType;
+            const identityGroup = document.querySelector(`[data-item-identity="${billingType}"]`);
+            const personName = identityGroup?.querySelector('[data-item-person-name]')?.value.trim() || '';
+            const referenceNumber = identityGroup?.querySelector('[data-item-reference-number]')?.value.trim() || '';
+            const departmentNumber = identityGroup?.querySelector('[data-item-department-number]')?.value.trim() || '';
+            const roomNumber = identityGroup?.querySelector('[data-item-room-number]')?.value.trim() || '';
+
+            if (! personName || ! referenceNumber || (billingType === 'hotel_guest' && ! roomNumber)) {
+                showItemError(billingType === 'employee'
+                    ? 'Entre le nom de l’employé et son numéro d’étiquette.'
+                    : 'Entre le nom du client, son numéro d’étiquette et son numéro de chambre.');
+                return;
+            }
+
+            const identity = {
+                personName,
+                referenceNumber,
+                departmentNumber,
+                roomNumber,
+                billingLabel: billingType === 'employee' ? 'Employé' : 'Client de l’hôtel',
+            };
+            let firstTarget = null;
+
+            pendingItems.forEach((item) => {
+                firstTarget ??= appendItemToInvoice(item, identity);
+            });
+
+            identityGroup?.querySelectorAll('input').forEach((field) => {
+                field.value = '';
+            });
+            releasePendingBatch();
+            clearItemError();
             useCatalogPrice();
             recalculateBillingSummary();
-            if (target.offsetParent !== null) target.focus();
+            if (firstTarget?.offsetParent !== null) firstTarget.focus();
         };
 
         quantityInput.addEventListener('input', updateTotal);
         categoryInput.addEventListener('change', useCatalogPrice);
         billingTypeInput.addEventListener('change', updateCategories);
-        addButton?.addEventListener('click', addToGrid);
+        stageButton?.addEventListener('click', stageCurrentItem);
+        addButtons.forEach((button) => button.addEventListener('click', addToInvoice));
         gridInputs.forEach((input) => input.addEventListener('input', recalculateBillingSummary));
+        invoiceForm?.addEventListener('submit', (event) => {
+            if (pendingItems.length === 0) return;
+
+            event.preventDefault();
+            showItemError('Clique sur « Ajouter à la facture » pour confirmer les items en attente avant d’enregistrer.');
+            itemError?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
         billingTypeInput.value = calculator.dataset.defaultBillingType;
         updateCategories();
         recalculateBillingSummary();

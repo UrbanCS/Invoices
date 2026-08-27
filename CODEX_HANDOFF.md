@@ -1,6 +1,6 @@
 # Handoff Codex - Nettoyeur Villeneuve
 
-Derniere mise a jour: 2026-08-15
+Derniere mise a jour: 2026-08-27
 
 Ce document est la source de contexte principale pour reprendre le projet dans un nouveau chat Codex ou sur un autre ordinateur. Il decrit l'etat local, les regles metier, le deploiement cPanel et les verifications encore necessaires.
 
@@ -19,13 +19,46 @@ Ce document est la source de contexte principale pour reprendre le projet dans u
 
 ## Emplacement du projet
 
-- Windows: `C:\Users\marca\OneDrive\Desktop\Invoices`
-- WSL: `/mnt/c/Users/marca/OneDrive/Desktop/Invoices`
-- Depot Git: branche `main`
+- Windows: `C:\Users\marca\OneDrive\Documents\Invoices\Invoices`
+- WSL: `/mnt/c/Users/marca/OneDrive/Documents/Invoices/Invoices`
+- Depot Git: la copie locale verifiee le 2026-08-27 ne contient pas de dossier `.git`; `git status` et `git diff` ne sont donc pas disponibles dans cette copie. Les mentions historiques de la branche `main` ci-dessous doivent etre confirmees depuis une copie qui contient les metadonnees Git.
 - Application: Laravel 11, PHP 8.2+, MySQL/MariaDB
 - Interface: Blade, Tailwind CSS, Alpine.js et Vite
 - PDF: `barryvdh/laravel-dompdf`
 - Production: PHP et MySQL seulement; aucun serveur Node, Redis, Docker ou worker permanent
+
+## Etat verifie et deploiement du 2026-08-27
+
+Demande livree:
+
+- ajout du champ `No d'etiquette` pour les commandes de clients d'hotel, distinct du numero de chambre;
+- ajout du bouton `Ajouter item` dans la creation manuelle d'une facture afin de preparer plusieurs items pour une meme journee avant de les ajouter ensemble a la facture;
+- ajout d'un second bouton `Ajouter a la facture` sous les derniers champs d'identite;
+- compatibilite conservee avec les anciennes donnees hotel qui utilisaient `reference_number` comme numero de chambre;
+- presentation mise a jour dans le portail, les etats de compte, les factures, les PDF et le CSV.
+
+Verification locale:
+
+- suite PHPUnit complete: 35 tests, 256 assertions, succes;
+- `php artisan view:cache`: succes;
+- lint PHP des fichiers modifies: succes;
+- verification syntaxique du JavaScript integre: succes;
+- `npm ci` et build Vite dans un dossier temporaire: succes;
+- `npm audit` a signale 5 vulnerabilites de dependances de severite elevee; aucune correction automatique hors mandat n'a ete appliquee;
+- aucun changement local n'a ete supprime ou reinitialise;
+- cette copie n'a pas de metadonnees Git, donc aucun statut, diff ou commit Git fiable ne peut etre produit depuis ce dossier.
+
+Production confirmee sur `https://appvilleneuve.webactiondemo.ca`:
+
+- sauvegarde complete DirectAdmin terminee avant le deploiement le 2026-08-27;
+- 16 fichiers applicatifs cibles televerses et extraits dans `app_core` avec fusion et remplacement;
+- migration `2026_08_27_000001_add_guest_tag_number_to_cleaning_orders.php` executee avec succes;
+- `php artisan optimize:clear`, `config:cache`, `route:cache` et `view:cache` executes avec succes;
+- les permissions invalides preexistantes de `app/Http` et `resources/views` bloquaient l'acces aux controleurs et aux vues; les dossiers concernes ont ete remis a `755` avant de reconstruire les caches;
+- page publique chargee avec le titre `Nettoyeur Villeneuve` et la route protegee `/monthly-invoices/create` redirige correctement vers `/login` lorsque la session est fermee;
+- verification visuelle authentifiee de `/monthly-invoices/create`: le bouton `Ajouter item`, les deux boutons `Ajouter a la facture`, le champ hotel `No d'etiquette` et le champ separe `No de chambre` sont presents et actifs dans le bon contexte;
+- test manuel sans enregistrement: jour 26, `Trouser` x2, `Shirts` x3 et `Dress (and up)` x1 ont ete prepares ensemble; la liste temporaire affichait les trois lignes et verrouillait le jour/type. La page a ensuite ete rechargee pour abandonner le test sans creer de facture ni modifier la base;
+- l'archive `nettoyeur-villeneuve-20260827-3d255abbce5c4a698baf2b530d6d1d99.zip` a ete laissee dans `app_core`; elle n'a pas ete supprimee sans autorisation explicite.
 
 ## Etat Git local au 2026-08-15
 
@@ -181,7 +214,7 @@ Flux:
    - `Employe`;
    - `Client de l'hotel`.
 3. Pour un employe, il indique le nom, le numero d'etiquette et, au besoin, le numero de departement.
-4. Pour un client de l'hotel, il indique le nom du client et le numero de chambre.
+4. Pour un client de l'hotel, il indique le nom du client, le numero d'etiquette et le numero de chambre.
 5. Il choisit uniquement des items autorises et entre les quantites.
 6. Le serveur reprend les prix fixes du catalogue, calcule les lignes et le total, puis enregistre des instantanes.
 7. Le client peut reutiliser un nom d'employe sauvegarde ou ajouter un nouveau nom.
@@ -283,9 +316,10 @@ Migrations recentes a ne pas oublier lors d'un deploiement:
 2026_06_14_000001_add_department_and_invoice_to_cleaning_orders.php
 2026_07_28_000001_add_catalog_grouping_to_client_categories.php
 2026_07_30_000001_add_hotel_order_identity_fields.php
+2026_08_27_000001_add_guest_tag_number_to_cleaning_orders.php
 ```
 
-La derniere ajoute `order_type`, `employee_tag_number`, `guest_name` et `room_number` aux commandes.
+La migration du 2026-07-30 ajoute `order_type`, `employee_tag_number`, `guest_name` et `room_number` aux commandes. Celle du 2026-08-27 ajoute `guest_tag_number` afin de conserver separement le numero d'etiquette et le numero de chambre d'un client d'hotel.
 
 ## Hebergement cPanel actuellement utilise
 
@@ -510,7 +544,7 @@ npm run build
 git diff --check
 ```
 
-Au moment de ce handoff, PHP et Node ne sont pas disponibles directement dans le shell WSL actuel. Le dernier ensemble de changements non commits n'a donc pas ete revalide integralement dans ce shell. Des tests de fonctions ont ete ajoutes ou modifies, et Marc-Aime a effectue plusieurs tests manuels en production, mais le prochain Codex doit relancer la suite complete avant un commit ou un deploiement majeur.
+Le 2026-08-27, PHP 8.4.24 et Composer 2.10.3 ont ete installes uniquement dans des dossiers temporaires locaux pour valider le projet. La suite complete a reussi avec 35 tests et 256 assertions. Node a aussi permis `npm ci`, la verification syntaxique du JavaScript integre et un build Vite dans un dossier temporaire. Ces runtimes temporaires ne doivent pas etre supposes disponibles dans un prochain shell.
 
 Ne pas confondre une verification syntaxique, un build Vite ou un test manuel isole avec une preuve que toute la suite Laravel passe.
 

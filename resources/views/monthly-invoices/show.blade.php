@@ -105,6 +105,9 @@
                                 <span class="block text-xs text-stone-500">
                                     {{ $lineItem['reference_label'] }}: {{ $lineItem['reference_number'] ?: '—' }}
                                 </span>
+                                @if($lineItem['room_number'])
+                                    <span class="block text-xs text-stone-500">No de chambre: {{ $lineItem['room_number'] }}</span>
+                                @endif
                                 @if($lineItem['department_number'])
                                     <span class="block text-xs text-stone-500">Département: {{ $lineItem['department_number'] }}</span>
                                 @endif

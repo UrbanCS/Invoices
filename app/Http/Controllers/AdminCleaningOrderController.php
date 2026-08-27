@@ -85,9 +85,9 @@ class AdminCleaningOrderController extends Controller
             $notes = collect([
                 'Commande client #'.$order->id,
                 $order->orderTypeLabel().': '.$order->billingName(),
-                $order->billingReferenceLabel().': '.$order->billingReference(),
-                $order->isEmployeeOrder() && $order->department_number
-                    ? 'No de département: '.$order->department_number
+                'No d’étiquette: '.($order->billingTagNumber() ?: '—'),
+                $order->billingLocationNumber()
+                    ? $order->billingLocationLabel().': '.$order->billingLocationNumber()
                     : null,
                 $order->notes,
             ])->filter()->implode("\n");

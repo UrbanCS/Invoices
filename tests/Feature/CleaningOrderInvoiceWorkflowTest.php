@@ -247,6 +247,7 @@ class CleaningOrderInvoiceWorkflowTest extends TestCase
                 'service_date' => '2026-06-04',
                 'order_type' => 'hotel_guest',
                 'guest_name' => 'Alex Martin',
+                'guest_tag_number' => 'GT-77',
                 'room_number' => '478',
                 'quantities' => [$guestCategory->id => 2],
             ])
@@ -260,9 +261,46 @@ class CleaningOrderInvoiceWorkflowTest extends TestCase
         $this->assertSame(1000, $employeeOrder->total_cents);
         $this->assertSame(500, $employeeOrder->items()->firstOrFail()->unit_price_cents);
         $this->assertSame('Alex Martin', $guestOrder->guest_name);
+        $this->assertSame('GT-77', $guestOrder->guest_tag_number);
         $this->assertSame('478', $guestOrder->room_number);
         $this->assertSame(2300, $guestOrder->total_cents);
         $this->assertSame(1150, $guestOrder->items()->firstOrFail()->unit_price_cents);
+    }
+
+    public function test_hotel_guest_order_requires_a_tag_number(): void
+    {
+        $client = Client::create([
+            'name' => 'Best Western',
+            'tax_profile' => 'on_hst',
+            'default_language' => 'fr',
+        ]);
+        $guestCategory = ClientCategory::create([
+            'client_id' => $client->id,
+            'name' => 'Pantalon client',
+            'audience' => 'gentlemen',
+            'default_price_cents' => 1150,
+            'is_taxable' => true,
+            'is_active' => true,
+        ]);
+        $user = User::create([
+            'name' => 'Client Best Western',
+            'email' => 'best-western-tag-required@test.com',
+            'password' => 'password',
+            'role' => 'client',
+            'client_id' => $client->id,
+        ]);
+
+        $this->actingAs($user)
+            ->post(route('portal.orders.store'), [
+                'service_date' => '2026-06-04',
+                'order_type' => 'hotel_guest',
+                'guest_name' => 'Alex Martin',
+                'room_number' => '478',
+                'quantities' => [$guestCategory->id => 2],
+            ])
+            ->assertSessionHasErrors('guest_tag_number');
+
+        $this->assertDatabaseCount('cleaning_orders', 0);
     }
 
     public function test_hotel_client_cannot_use_a_guest_price_for_an_employee_order(): void
@@ -842,6 +880,7 @@ class CleaningOrderInvoiceWorkflowTest extends TestCase
             'service_date' => '2026-06-04',
             'order_type' => 'hotel_guest',
             'guest_name' => 'Alex Martin',
+            'guest_tag_number' => 'GT-77',
             'room_number' => '478',
             'status' => 'reviewed',
             'subtotal_cents' => 1150,
@@ -877,7 +916,8 @@ class CleaningOrderInvoiceWorkflowTest extends TestCase
         $this->assertSame('Julian', $lineItems->firstWhere('billing_type', 'employee')['person_name']);
         $this->assertSame('ET-42', $lineItems->firstWhere('billing_type', 'employee')['reference_number']);
         $this->assertSame('Alex Martin', $lineItems->firstWhere('billing_type', 'hotel_guest')['person_name']);
-        $this->assertSame('478', $lineItems->firstWhere('billing_type', 'hotel_guest')['reference_number']);
+        $this->assertSame('GT-77', $lineItems->firstWhere('billing_type', 'hotel_guest')['reference_number']);
+        $this->assertSame('478', $lineItems->firstWhere('billing_type', 'hotel_guest')['room_number']);
 
         $this->actingAs($admin)
             ->get(route('monthly-invoices.show', $invoice))
@@ -887,6 +927,7 @@ class CleaningOrderInvoiceWorkflowTest extends TestCase
             ->assertSee('Julian')
             ->assertSee('ET-42')
             ->assertSee('Alex Martin')
+            ->assertSee('GT-77')
             ->assertSee('478');
     }
 }

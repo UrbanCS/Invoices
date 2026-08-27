@@ -151,7 +151,8 @@ class MonthlyInvoiceApprovalWorkflowTest extends TestCase
                         'unit_price' => '11,50',
                         'billing_type' => 'hotel_guest',
                         'person_name' => 'Alex Martin',
-                        'reference_number' => '478',
+                        'reference_number' => 'GT-77',
+                        'room_number' => '478',
                     ]],
                 ],
             ],
@@ -176,7 +177,8 @@ class MonthlyInvoiceApprovalWorkflowTest extends TestCase
         $this->assertSame('Entretien', $employeeDetail['department_number']);
         $this->assertSame('hotel_guest', $guestDetail['billing_type']);
         $this->assertSame('Alex Martin', $guestDetail['person_name']);
-        $this->assertSame('478', $guestDetail['reference_number']);
+        $this->assertSame('GT-77', $guestDetail['reference_number']);
+        $this->assertSame('478', $guestDetail['room_number']);
 
         $this->actingAs($admin)
             ->get(route('monthly-invoices.show', $invoice))
@@ -186,9 +188,81 @@ class MonthlyInvoiceApprovalWorkflowTest extends TestCase
             ->assertSee('Julian')
             ->assertSee('ET-42')
             ->assertSee('Alex Martin')
+            ->assertSee('GT-77')
             ->assertSee('478')
             ->assertSee('10,00 $')
             ->assertSee('11,50 $');
+    }
+
+    public function test_manual_invoice_accepts_multiple_items_for_the_same_day_and_guest(): void
+    {
+        $admin = User::create([
+            'name' => 'Admin',
+            'email' => 'admin-multiple-items@test.com',
+            'password' => 'password',
+            'role' => 'super_admin',
+        ]);
+        $client = Client::create([
+            'name' => 'Hôtel plusieurs items',
+            'tax_profile' => 'on_hst',
+            'default_language' => 'fr',
+        ]);
+        $categories = collect([
+            ['name' => 'Chemise', 'price' => 500],
+            ['name' => 'Pantalon', 'price' => 800],
+            ['name' => 'Robe', 'price' => 2500],
+        ])->map(fn (array $item) => ClientCategory::create([
+            'client_id' => $client->id,
+            'name' => $item['name'],
+            'audience' => 'unisex',
+            'default_price_cents' => $item['price'],
+            'is_taxable' => true,
+            'is_active' => true,
+        ]));
+
+        $grid = [];
+        $details = [];
+        $quantities = [3, 2, 1];
+
+        foreach ($categories as $index => $category) {
+            $quantity = $quantities[$index];
+            $grid[26][$category->id] = number_format(($category->default_price_cents * $quantity) / 100, 2, ',', '');
+            $details[26][$category->id] = [[
+                'label' => $category->name,
+                'quantity' => (string) $quantity,
+                'unit_price' => number_format($category->default_price_cents / 100, 2, ',', ''),
+                'billing_type' => 'hotel_guest',
+                'person_name' => 'Alex Martin',
+                'reference_number' => 'GT-77',
+                'room_number' => '478',
+            ]];
+        }
+
+        $response = $this->actingAs($admin)->post(route('monthly-invoices.store'), [
+            'client_id' => $client->id,
+            'invoice_number' => 'MULTI-ITEMS-0826',
+            'invoice_month' => 8,
+            'invoice_year' => 2026,
+            'invoice_date' => '2026-08-27',
+            'source_mode' => 'manual_grid',
+            'grid' => $grid,
+            'details' => $details,
+        ]);
+
+        $invoice = MonthlyInvoice::with('entries')->firstOrFail();
+
+        $response->assertRedirect(route('monthly-invoices.show', $invoice));
+        $this->assertSame(5600, $invoice->subtotal_cents);
+        $this->assertCount(3, $invoice->entries);
+        $this->assertSame([26], $invoice->entries->pluck('service_day')->unique()->values()->all());
+        $this->assertSame(
+            ['Chemise', 'Pantalon', 'Robe'],
+            $invoice->entries->flatMap(fn ($entry) => $entry->item_details)->pluck('label')->sort()->values()->all(),
+        );
+        $this->assertTrue($invoice->entries->flatMap(fn ($entry) => $entry->item_details)->every(
+            fn (array $detail) => $detail['reference_number'] === 'GT-77'
+                && $detail['room_number'] === '478',
+        ));
     }
 
     private function invoiceContext(string $role): array

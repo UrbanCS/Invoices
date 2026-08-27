@@ -39,10 +39,11 @@ class DailyRecordAggregationService
                         'total_cents' => $item->amount_cents,
                         'billing_type' => $billingType,
                         'person_name' => $item->customer_name,
-                        'reference_number' => $billingType === 'employee'
-                            ? $record->reference_number
-                            : $item->department_or_room,
+                        'reference_number' => $record->reference_number,
                         'department_number' => $billingType === 'employee'
+                            ? $item->department_or_room
+                            : null,
+                        'room_number' => $billingType === 'hotel_guest'
                             ? $item->department_or_room
                             : null,
                     ]],

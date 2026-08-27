@@ -94,10 +94,10 @@
                 <td class="border p-2">
                     <strong>{{ $order->billingName() ?: '—' }}</strong>
                     <span class="block text-xs text-stone-500">
-                        {{ $order->billingReferenceLabel() }}: {{ $order->billingReference() ?: '—' }}
+                        No d’étiquette: {{ $order->billingTagNumber() ?: '—' }}
                     </span>
-                    @if($order->isEmployeeOrder() && $order->department_number)
-                        <span class="block text-xs text-stone-500">Département: {{ $order->department_number }}</span>
+                    @if($order->billingLocationNumber())
+                        <span class="block text-xs text-stone-500">{{ $order->billingLocationLabel() }}: {{ $order->billingLocationNumber() }}</span>
                     @endif
                 </td>
                 <td class="border p-2">

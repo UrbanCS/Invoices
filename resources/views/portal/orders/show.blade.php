@@ -21,11 +21,9 @@
     <div class="grid gap-4 md:grid-cols-4">
         <div><span class="label">Type</span><div class="mt-1 font-semibold">{{ $order->orderTypeLabel() }}</div></div>
         <div><span class="label">{{ $order->isEmployeeOrder() ? 'Nom de l’employé' : 'Nom du client' }}</span><div class="mt-1 font-semibold">{{ $order->billingName() ?: '—' }}</div></div>
-        <div><span class="label">{{ $order->billingReferenceLabel() }}</span><div class="mt-1 font-semibold">{{ $order->billingReference() ?: '—' }}</div></div>
+        <div><span class="label">No d’étiquette</span><div class="mt-1 font-semibold">{{ $order->billingTagNumber() ?: '—' }}</div></div>
         <div><span class="label">Date</span><div class="mt-1 font-semibold">{{ $order->service_date->format('Y-m-d') }}</div></div>
-        @if($order->isEmployeeOrder())
-            <div><span class="label">No de département</span><div class="mt-1 font-semibold">{{ $order->department_number ?: '—' }}</div></div>
-        @endif
+        <div><span class="label">{{ $order->billingLocationLabel() }}</span><div class="mt-1 font-semibold">{{ $order->billingLocationNumber() ?: '—' }}</div></div>
         <div><span class="label">Total</span><div class="mt-1 font-black text-villeneuve-forest">{{ $money->format($order->total_cents, $language) }}</div></div>
     </div>
     @if($order->notes)

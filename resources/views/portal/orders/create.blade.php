@@ -62,10 +62,14 @@
             </div>
         </div>
 
-        <div class="grid gap-4 md:col-span-2 md:grid-cols-2" data-identity-group="hotel_guest">
+        <div class="grid gap-4 md:col-span-2 md:grid-cols-3" data-identity-group="hotel_guest">
             <div>
                 <label class="label">Nom du client</label>
                 <input class="mt-1 w-full" name="guest_name" value="{{ old('guest_name', $order->guest_name) }}" placeholder="Nom du client de l’hôtel" data-required>
+            </div>
+            <div>
+                <label class="label">No d’étiquette</label>
+                <input class="mt-1 w-full" name="guest_tag_number" value="{{ old('guest_tag_number', $order->guest_tag_number) }}" placeholder="Ex. 0096" data-required>
             </div>
             <div>
                 <label class="label">No de chambre</label>

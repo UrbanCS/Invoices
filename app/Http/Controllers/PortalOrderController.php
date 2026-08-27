@@ -146,6 +146,7 @@ class PortalOrderController extends Controller
             'employee_tag_number' => ['nullable', 'string', 'max:100'],
             'department_number' => ['nullable', 'string', 'max:100'],
             'guest_name' => ['nullable', 'string', 'max:255'],
+            'guest_tag_number' => ['nullable', 'string', 'max:100'],
             'room_number' => ['nullable', 'string', 'max:100'],
             'notes' => ['nullable', 'string'],
             'quantities' => ['nullable', 'array'],
@@ -157,11 +158,13 @@ class PortalOrderController extends Controller
     {
         if ($data['order_type'] === 'hotel_guest') {
             $guestName = trim((string) ($data['guest_name'] ?? ''));
+            $guestTagNumber = trim((string) ($data['guest_tag_number'] ?? ''));
             $roomNumber = trim((string) ($data['room_number'] ?? ''));
 
-            if ($guestName === '' || $roomNumber === '') {
+            if ($guestName === '' || $guestTagNumber === '' || $roomNumber === '') {
                 throw ValidationException::withMessages(array_filter([
                     'guest_name' => $guestName === '' ? 'Entre le nom du client de l’hôtel.' : null,
+                    'guest_tag_number' => $guestTagNumber === '' ? 'Entre le numéro d’étiquette.' : null,
                     'room_number' => $roomNumber === '' ? 'Entre le numéro de chambre.' : null,
                 ]));
             }
@@ -171,6 +174,7 @@ class PortalOrderController extends Controller
                 'employee_tag_number' => null,
                 'department_number' => null,
                 'guest_name' => $guestName,
+                'guest_tag_number' => $guestTagNumber,
                 'room_number' => $roomNumber,
             ];
         }
@@ -195,6 +199,7 @@ class PortalOrderController extends Controller
             'employee_tag_number' => $employeeTagNumber,
             'department_number' => $departmentNumber,
             'guest_name' => null,
+            'guest_tag_number' => null,
             'room_number' => null,
         ];
     }

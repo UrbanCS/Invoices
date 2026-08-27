@@ -85,9 +85,9 @@
                     {{ $order->orderTypeLabel() }}: {{ $order->billingName() ?: '—' }}
                 </td>
                 <td>
-                    {{ $order->billingReferenceLabel() }}: {{ $order->billingReference() ?: '—' }}
-                    @if($order->isEmployeeOrder() && $order->department_number)
-                        <span class="block text-xs text-stone-500">Département: {{ $order->department_number }}</span>
+                    No d’étiquette: {{ $order->billingTagNumber() ?: '—' }}
+                    @if($order->billingLocationNumber())
+                        <span class="block text-xs text-stone-500">{{ $order->billingLocationLabel() }}: {{ $order->billingLocationNumber() }}</span>
                     @endif
                 </td>
                 <td>

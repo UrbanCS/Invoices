@@ -416,6 +416,13 @@ class MonthlyInvoiceController extends Controller
                         : $defaultBillingType;
                 $personName = trim((string) ($row['person_name'] ?? ''));
                 $referenceNumber = trim((string) ($row['reference_number'] ?? ''));
+                $hasExplicitRoomNumber = array_key_exists('room_number', $row);
+                $roomNumber = trim((string) ($row['room_number'] ?? ''));
+
+                if ($billingType === 'hotel_guest' && ! $hasExplicitRoomNumber) {
+                    $roomNumber = $referenceNumber;
+                    $referenceNumber = '';
+                }
 
                 if ($quantity <= 0 || $unitPriceCents <= 0 || $totalCents <= 0) {
                     return null;
@@ -427,11 +434,17 @@ class MonthlyInvoiceController extends Controller
                     ]);
                 }
 
-                if ($hasExplicitBillingType && ($personName === '' || $referenceNumber === '')) {
+                $identityIsIncomplete = $billingType === 'employee'
+                    ? ($personName === '' || $referenceNumber === '')
+                    : ($personName === ''
+                        || ($hasExplicitRoomNumber && $referenceNumber === '')
+                        || $roomNumber === '');
+
+                if ($hasExplicitBillingType && $identityIsIncomplete) {
                     throw ValidationException::withMessages([
                         'details' => $billingType === 'employee'
                             ? 'Chaque item EMPLOYÉS doit avoir un nom d’employé et un numéro d’étiquette.'
-                            : 'Chaque item CLIENTS doit avoir un nom de client et un numéro de chambre.',
+                            : 'Chaque item CLIENTS doit avoir un nom de client, un numéro d’étiquette et un numéro de chambre.',
                     ]);
                 }
 
@@ -445,6 +458,9 @@ class MonthlyInvoiceController extends Controller
                     'reference_number' => $referenceNumber ?: null,
                     'department_number' => $billingType === 'employee'
                         ? (trim((string) ($row['department_number'] ?? '')) ?: null)
+                        : null,
+                    'room_number' => $billingType === 'hotel_guest'
+                        ? ($roomNumber ?: null)
                         : null,
                 ];
             })

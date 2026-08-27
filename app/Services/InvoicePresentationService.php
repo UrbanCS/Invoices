@@ -37,6 +37,7 @@ class InvoicePresentationService
                         'reference_number' => null,
                         'reference_label' => $this->referenceLabel($billingType),
                         'department_number' => null,
+                        'room_number' => null,
                         'service' => $service,
                         'label' => $category['name'] ?? $entry->category_name_snapshot,
                         'quantity' => null,
@@ -47,15 +48,24 @@ class InvoicePresentationService
 
                 return $details->map(function (array $detail) use ($entry, $category, $service) {
                     $type = $this->billingType($detail, $category);
+                    $isLegacyGuestDetail = $type === 'hotel_guest'
+                        && ! array_key_exists('room_number', $detail);
 
                     return [
                         'day' => (int) $entry->service_day,
                         'billing_type' => $type,
                         'billing_label' => $this->billingLabel($type),
                         'person_name' => $detail['person_name'] ?? $detail['employee_name'] ?? null,
-                        'reference_number' => $detail['reference_number'] ?? null,
+                        'reference_number' => $isLegacyGuestDetail
+                            ? null
+                            : ($detail['reference_number'] ?? null),
                         'reference_label' => $this->referenceLabel($type),
                         'department_number' => $detail['department_number'] ?? null,
+                        'room_number' => $type === 'hotel_guest'
+                            ? ($isLegacyGuestDetail
+                                ? ($detail['reference_number'] ?? null)
+                                : ($detail['room_number'] ?? null))
+                            : null,
                         'service' => $service,
                         'label' => $detail['label'] ?? $category['name'] ?? $entry->category_name_snapshot,
                         'quantity' => $detail['quantity'] ?? null,
@@ -116,6 +126,6 @@ class InvoicePresentationService
 
     private function referenceLabel(string $type): string
     {
-        return $type === 'employee' ? 'No d’étiquette' : 'No de chambre';
+        return 'No d’étiquette';
     }
 }
