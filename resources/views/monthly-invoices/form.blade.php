@@ -782,7 +782,8 @@
             let firstTarget = null;
 
             pendingItems.forEach((item) => {
-                firstTarget ??= appendItemToInvoice(item, identity);
+                const target = appendItemToInvoice(item, identity);
+                firstTarget ??= target;
             });
 
             identityGroup?.querySelectorAll('input').forEach((field) => {

@@ -69,6 +69,18 @@ class MonthlyInvoiceApprovalWorkflowTest extends TestCase
         $this->assertSame('draft', $invoice->status);
     }
 
+    public function test_manual_invoice_form_appends_every_pending_item_before_tracking_the_first_target(): void
+    {
+        [$user, $client] = $this->invoiceContext('super_admin');
+
+        $this->actingAs($user)
+            ->get(route('monthly-invoices.create', ['client_id' => $client->id]))
+            ->assertOk()
+            ->assertSee('const target = appendItemToInvoice(item, identity);', false)
+            ->assertSee('firstTarget ??= target;', false)
+            ->assertDontSee('firstTarget ??= appendItemToInvoice(item, identity);', false);
+    }
+
     public function test_employee_cannot_approve_an_invoice(): void
     {
         [$user, $client] = $this->invoiceContext('employee');

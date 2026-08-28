@@ -39,7 +39,7 @@ Demande livree:
 
 Verification locale:
 
-- suite PHPUnit complete: 35 tests, 256 assertions, succes;
+- suite PHPUnit complete: 36 tests, 260 assertions, succes;
 - `php artisan view:cache`: succes;
 - lint PHP des fichiers modifies: succes;
 - verification syntaxique du JavaScript integre: succes;
@@ -58,6 +58,9 @@ Production confirmee sur `https://appvilleneuve.webactiondemo.ca`:
 - page publique chargee avec le titre `Nettoyeur Villeneuve` et la route protegee `/monthly-invoices/create` redirige correctement vers `/login` lorsque la session est fermee;
 - verification visuelle authentifiee de `/monthly-invoices/create`: le bouton `Ajouter item`, les deux boutons `Ajouter a la facture`, le champ hotel `No d'etiquette` et le champ separe `No de chambre` sont presents et actifs dans le bon contexte;
 - test manuel sans enregistrement: jour 26, `Trouser` x2, `Shirts` x3 et `Dress (and up)` x1 ont ete prepares ensemble; la liste temporaire affichait les trois lignes et verrouillait le jour/type. La page a ensuite ete rechargee pour abandonner le test sans creer de facture ni modifier la base;
+- correctif du bug signale dans `Bug.mp4`: l'expression `firstTarget ??= appendItemToInvoice(...)` court-circuitait les appels apres le premier item. L'ajout de chaque item est maintenant execute avant de memoriser la premiere cible;
+- correctif televerse dans `resources/views/monthly-invoices/form.blade.php` apres creation de la sauvegarde serveur `form.blade.php.bak-20260827-multiitem`, puis `php artisan view:cache` execute avec succes;
+- test authentifie en production sans enregistrement: jour 22, `Jacket` x4 et `Shirts` x7 sont tous les deux presents dans le resume final, avec un total de 44,50 $. La page a ete rechargee et aucune facture de test n'a ete creee;
 - l'archive `nettoyeur-villeneuve-20260827-3d255abbce5c4a698baf2b530d6d1d99.zip` a ete laissee dans `app_core`; elle n'a pas ete supprimee sans autorisation explicite.
 
 ## Etat Git local au 2026-08-15
@@ -544,7 +547,7 @@ npm run build
 git diff --check
 ```
 
-Le 2026-08-27, PHP 8.4.24 et Composer 2.10.3 ont ete installes uniquement dans des dossiers temporaires locaux pour valider le projet. La suite complete a reussi avec 35 tests et 256 assertions. Node a aussi permis `npm ci`, la verification syntaxique du JavaScript integre et un build Vite dans un dossier temporaire. Ces runtimes temporaires ne doivent pas etre supposes disponibles dans un prochain shell.
+Le 2026-08-27, PHP 8.4.24 et Composer 2.10.3 ont ete installes uniquement dans des dossiers temporaires locaux pour valider le projet. Apres le correctif multi-item, la suite complete a reussi avec 36 tests et 260 assertions. Node a aussi permis `npm ci`, la verification syntaxique du JavaScript integre et un build Vite dans un dossier temporaire. Ces runtimes temporaires ne doivent pas etre supposes disponibles dans un prochain shell.
 
 Ne pas confondre une verification syntaxique, un build Vite ou un test manuel isole avec une preuve que toute la suite Laravel passe.
 
