@@ -81,7 +81,9 @@
         <label class="label">Langue</label>
         <select class="mt-1 w-full" name="default_language">
             <option value="fr" @selected(old('default_language', $client->default_language) === 'fr')>Français</option>
+            <option value="en" @selected(old('default_language', $client->default_language) === 'en')>Anglais</option>
         </select>
+        <p class="mt-1 text-sm text-stone-600">Cette langue est utilisée pour les libellés et les montants de ses factures PDF.</p>
     </div>
     <div>
         <label class="label">Style de facture PDF</label>

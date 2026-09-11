@@ -148,7 +148,13 @@
         <div class="mt-4 grid gap-3 rounded border border-villeneuve-line bg-stone-50 p-4 md:grid-cols-3" data-item-identity="employee">
             <div>
                 <label class="label">Nom de l’employé</label>
-                <input class="mt-1 w-full" data-item-person-name placeholder="Ex. Julian">
+                <input class="mt-1 w-full" list="employee-name-options" autocomplete="off" data-item-person-name placeholder="Ex. Julian">
+                <datalist id="employee-name-options" data-employee-name-options>
+                    @foreach($selectedClient?->employeeNames ?? collect() as $employeeName)
+                        <option value="{{ $employeeName->name }}"></option>
+                    @endforeach
+                </datalist>
+                <p class="mt-1 text-xs text-stone-500">Choisis un nom déjà utilisé ou écris-en un nouveau. Il sera mémorisé pour cet hôtel.</p>
             </div>
             <div>
                 <label class="label">No d’étiquette</label>
@@ -305,7 +311,7 @@
                 <p
                     class="p-4 text-center text-sm text-stone-500"
                     data-added-items-empty
-                    @if($entries->where('amount_cents', '>', 0)->isNotEmpty()) hidden @endif
+                    @if($entries->isNotEmpty()) hidden @endif
                 >
                     Aucun item ajouté pour l’instant.
                 </p>
@@ -645,7 +651,7 @@
             const totalCents = Math.round(quantity * unitPriceCents);
             const billingType = billingTypeInput.value;
 
-            if (day < 1 || day > 31 || ! category || quantity <= 0 || unitPriceCents <= 0 || totalCents <= 0) {
+            if (day < 1 || day > 31 || ! category || quantity <= 0 || unitPriceCents < 0 || totalCents < 0) {
                 showItemError('Choisis un jour, un item et une quantité supérieure à zéro.');
                 return false;
             }
@@ -755,6 +761,21 @@
             return target;
         };
 
+        const rememberEmployeeOption = (name) => {
+            const options = document.querySelector('[data-employee-name-options]');
+            if (! options) return;
+
+            const normalizedName = name.toLocaleLowerCase('fr-CA');
+            const alreadyExists = Array.from(options.options)
+                .some((option) => option.value.trim().toLocaleLowerCase('fr-CA') === normalizedName);
+
+            if (! alreadyExists) {
+                const option = document.createElement('option');
+                option.value = name;
+                options.appendChild(option);
+            }
+        };
+
         const addToInvoice = () => {
             if (pendingItems.length === 0 && ! stageCurrentItem()) return;
 
@@ -785,6 +806,8 @@
                 const target = appendItemToInvoice(item, identity);
                 firstTarget ??= target;
             });
+
+            if (billingType === 'employee') rememberEmployeeOption(personName);
 
             identityGroup?.querySelectorAll('input').forEach((field) => {
                 field.value = '';

@@ -23,14 +23,14 @@
         @if($invoice->status === 'draft' && auth()->user()->isSuperAdmin())
             <form method="post" action="{{ route('monthly-invoices.approve', $invoice) }}">@csrf<button class="btn btn-secondary">Approuver</button></form>
         @endif
-        <form method="post" action="{{ route('monthly-invoices.generate-pdf', $invoice) }}">@csrf<button class="btn btn-primary">Générer PDF</button></form>
+        <form method="post" action="{{ route('monthly-invoices.generate-pdf', $invoice) }}">@csrf<button class="btn btn-primary">Générer PDF ({{ $invoiceLanguage === 'en' ? 'anglais' : 'français' }})</button></form>
         @if($invoice->pdf_path)
             <a class="btn btn-secondary" href="{{ route('monthly-invoices.download', $invoice) }}">Télécharger PDF</a>
         @endif
     </div>
 </div>
 
-<div class="mt-6 grid gap-6 lg:grid-cols-[1fr_340px]">
+<div class="mt-6 grid gap-6">
     <div class="space-y-6">
         <section class="panel overflow-x-auto p-6">
             <div>
@@ -80,7 +80,7 @@
         <section class="panel overflow-x-auto p-6">
             <h2 class="text-xl font-bold text-villeneuve-forest">Détail des items facturés</h2>
             <p class="mt-1 text-sm text-stone-600">
-                Le nom et la référence sont conservés avec chaque item de la facture.
+                Les items d’une même personne et d’une même journée sont regroupés sur une seule rangée.
             </p>
 
             <table class="mt-4 w-full text-sm">
@@ -96,39 +96,50 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @forelse($lineItems as $lineItem)
+                    @forelse($groupedLineItems as $group)
                         <tr class="border-t border-villeneuve-line">
-                            <td class="p-3 font-bold">{{ $lineItem['day'] }}</td>
-                            <td class="p-3">{{ $lineItem['billing_label'] }}</td>
+                            <td class="p-3 font-bold">{{ $group['day'] }}</td>
+                            <td class="p-3">{{ $group['billing_label'] }}</td>
                             <td class="p-3">
-                                <strong>{{ $lineItem['person_name'] ?: '—' }}</strong>
+                                <strong>{{ $group['person_name'] ?: '—' }}</strong>
                                 <span class="block text-xs text-stone-500">
-                                    {{ $lineItem['reference_label'] }}: {{ $lineItem['reference_number'] ?: '—' }}
+                                    {{ $group['reference_label'] }}: {{ $group['reference_number'] ?: '—' }}
                                 </span>
-                                @if($lineItem['room_number'])
-                                    <span class="block text-xs text-stone-500">No de chambre: {{ $lineItem['room_number'] }}</span>
+                                @if($group['room_number'])
+                                    <span class="block text-xs text-stone-500">No de chambre: {{ $group['room_number'] }}</span>
                                 @endif
-                                @if($lineItem['department_number'])
-                                    <span class="block text-xs text-stone-500">Département: {{ $lineItem['department_number'] }}</span>
-                                @endif
-                            </td>
-                            <td class="p-3">
-                                <strong>{{ $lineItem['label'] }}</strong>
-                                @if($lineItem['service'])
-                                    <span class="block text-xs text-stone-500">{{ $lineItem['service'] }}</span>
+                                @if($group['department_number'])
+                                    <span class="block text-xs text-stone-500">Département: {{ $group['department_number'] }}</span>
                                 @endif
                             </td>
-                            <td class="p-3 text-right">
-                                {{ $lineItem['quantity'] !== null ? rtrim(rtrim(number_format((float) $lineItem['quantity'], 2, ',', ' '), '0'), ',') : '—' }}
+                            <td class="p-3 align-top">
+                                @foreach($group['items'] as $item)
+                                    <div @class(['min-h-[2.75rem]', 'border-t border-villeneuve-line pt-2 mt-2' => ! $loop->first])>
+                                        <strong>{{ $item['label'] }}</strong>
+                                    </div>
+                                @endforeach
                             </td>
-                            <td class="p-3 text-right">
-                                {{ $lineItem['unit_price_cents'] !== null ? $money->format($lineItem['unit_price_cents'], $invoiceLanguage) : '—' }}
+                            <td class="p-3 text-right align-top">
+                                @foreach($group['items'] as $item)
+                                    <div @class(['min-h-[2.75rem]', 'border-t border-villeneuve-line pt-2 mt-2' => ! $loop->first])>
+                                        {{ $item['quantity'] !== null ? rtrim(rtrim(number_format((float) $item['quantity'], 2, ',', ' '), '0'), ',') : '—' }}
+                                    </div>
+                                @endforeach
                             </td>
-                            <td class="p-3 text-right font-bold">{{ $money->format($lineItem['total_cents'], $invoiceLanguage) }}</td>
+                            <td class="p-3 text-right align-top">
+                                @foreach($group['items'] as $item)
+                                    <div @class(['min-h-[2.75rem]', 'border-t border-villeneuve-line pt-2 mt-2' => ! $loop->first])>
+                                        {{ $item['unit_price_cents'] !== null ? $money->format($item['unit_price_cents'], $invoiceLanguage) : '—' }}
+                                    </div>
+                                @endforeach
+                            </td>
+                            <td class="p-3 text-right font-bold align-top group-total">
+                                {{ $money->format($group['total_cents'], $invoiceLanguage) }}
+                            </td>
                         </tr>
                     @empty
                         <tr>
-                            <td class="p-6 text-center text-stone-500" colspan="7">Aucun item facturé.</td>
+                            <td class="p-6 text-center text-stone-500" colspan="7">Aucun item.</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -170,7 +181,12 @@
             <div class="flex justify-between"><dt>Employés</dt><dd>{{ $money->format($billingSubtotals['employee'], $invoiceLanguage) }}</dd></div>
             <div class="flex justify-between"><dt>Clients</dt><dd>{{ $money->format($billingSubtotals['hotel_guest'], $invoiceLanguage) }}</dd></div>
             <div class="flex justify-between border-t pt-3"><dt>Sous-total</dt><dd>{{ $money->format($invoice->subtotal_cents, $invoiceLanguage) }}</dd></div>
-            <div class="flex justify-between"><dt>Rabais / crédits</dt><dd>-{{ $money->format($invoice->discount_cents, $invoiceLanguage) }}</dd></div>
+            @if($invoice->adjustments->isNotEmpty())
+                <div class="border-t pt-3 font-bold">Rabais, crédits et frais</div>
+            @endif
+            @foreach($invoice->adjustments as $adjustment)
+                <div class="flex justify-between"><dt>{{ $adjustment->label }}</dt><dd>{{ in_array($adjustment->type, ['discount', 'credit'], true) ? '-' : '' }}{{ $money->format($adjustment->amount_cents, $invoiceLanguage) }}</dd></div>
+            @endforeach
             @foreach($invoice->tax_profile_snapshot ?? [] as $tax)
                 <div class="flex justify-between"><dt>{{ $tax['label'] }}</dt><dd>{{ $money->format($tax['amount_cents'], $invoiceLanguage) }}</dd></div>
             @endforeach

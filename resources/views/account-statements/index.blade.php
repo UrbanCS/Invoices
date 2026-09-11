@@ -33,7 +33,55 @@
     </div>
 </form>
 
-<section class="mt-6 grid gap-4 md:grid-cols-3">
+<section class="panel mt-6 p-6">
+    <div class="flex flex-wrap items-center justify-between gap-4">
+        <div>
+            <h2 class="text-xl font-bold text-villeneuve-forest">Factures du mois</h2>
+            <p class="mt-1 text-sm text-stone-600">{{ $statement['rows']->count() }} facture(s) approuvée(s), envoyée(s) ou payée(s) pour la période sélectionnée. Les brouillons et factures annulées sont exclus.</p>
+        </div>
+        @if($clientId && $statement['rows']->isNotEmpty())
+            <div class="flex flex-wrap gap-2">
+                <a class="btn btn-secondary" href="{{ route('account-statements.summary', ['month' => $month, 'year' => $year, 'client_id' => $clientId]) }}">Voir le récapitulatif du mois</a>
+                <a class="btn btn-primary" href="{{ route('account-statements.summary', ['month' => $month, 'year' => $year, 'client_id' => $clientId, 'pdf' => 1]) }}">Télécharger le récapitulatif du mois (PDF)</a>
+            </div>
+        @elseif(!$clientId)
+            <p class="text-sm text-stone-600">Choisis un client et clique sur Filtrer pour obtenir son récapitulatif mensuel.</p>
+        @endif
+    </div>
+    <p class="mt-3 text-sm text-stone-600">Le récapitulatif réunit les factures existantes dans un seul document à envoyer au client, sans les facturer à nouveau. Le PDF utilise la langue du client.</p>
+    <div class="mt-4 grid gap-4 md:grid-cols-3">
+        <div><div class="label">Total facturé (taxes incluses)</div><strong class="text-2xl">{{ $money->format($statement['total_cents'], 'fr') }}</strong></div>
+        <div><div class="label">Paiements reçus</div><strong class="text-2xl">{{ $money->format($statement['paid_cents'], 'fr') }}</strong></div>
+        <div><div class="label">Solde des factures du mois</div><strong class="text-2xl">{{ $money->format($statement['balance_cents'], 'fr') }}</strong></div>
+    </div>
+    <div class="mt-4 overflow-x-auto">
+        <table class="w-full border-collapse text-sm">
+            <thead><tr>
+                @foreach(['Date', 'Facture', 'Client', 'Statut', 'Avant taxes', 'Taxes', 'Total', 'Paiements', 'Solde'] as $heading)
+                    <th class="border bg-villeneuve-mint p-2 text-left">{{ $heading }}</th>
+                @endforeach
+            </tr></thead>
+            <tbody>
+                @forelse($statement['rows'] as $row)
+                    <tr>
+                        <td class="border p-2">{{ $row['invoice']->invoice_date?->format('Y-m-d') }}</td>
+                        <td class="border p-2"><a class="font-bold underline" href="{{ route('monthly-invoices.show', $row['invoice']) }}">{{ $row['invoice']->invoice_number }}</a></td>
+                        <td class="border p-2">{{ $row['invoice']->client?->name }}</td>
+                        <td class="border p-2">{{ trans('invoice.statuses.'.$row['invoice']->status, [], 'fr') }}</td>
+                        @foreach(['net_cents', 'tax_cents', 'total_cents', 'paid_cents', 'balance_cents'] as $field)
+                            <td class="border p-2 text-right">{{ $money->format($row[$field], 'fr') }}</td>
+                        @endforeach
+                    </tr>
+                @empty
+                    <tr><td colspan="9" class="border p-4 text-center">Aucune facture approuvée, envoyée ou payée pour cette période.</td></tr>
+                @endforelse
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<h2 class="mt-8 text-xl font-bold text-villeneuve-forest">Commandes de nettoyage</h2>
+<section class="mt-4 grid gap-4 md:grid-cols-3">
     <div class="panel p-5">
         <div class="label">Sous-total commandes</div>
         <div class="mt-2 text-2xl font-black text-villeneuve-forest">{{ $money->format($subtotalCents, 'fr') }}</div>
@@ -51,7 +99,7 @@
 <section class="panel mt-6 p-5">
     <div class="flex flex-wrap items-center justify-between gap-4">
         <div>
-            <h2 class="text-xl font-bold text-villeneuve-forest">Facture mensuelle</h2>
+            <h2 class="text-xl font-bold text-villeneuve-forest">Facturer les commandes non facturées</h2>
             @if($clientId)
                 <p class="mt-1 text-sm text-stone-600">
                     Génère une seule facture pour les commandes approuvées non facturées de ce client pendant ce mois.
@@ -67,7 +115,7 @@
                 <input type="hidden" name="month" value="{{ $month }}">
                 <input type="hidden" name="year" value="{{ $year }}">
                 <input type="hidden" name="client_id" value="{{ $clientId }}">
-                <button class="btn btn-primary" @disabled($invoiceableOrdersCount === 0)>Créer la facture du mois</button>
+                <button class="btn btn-primary" @disabled($invoiceableOrdersCount === 0)>Créer une facture depuis les commandes</button>
             </form>
         @endif
     </div>

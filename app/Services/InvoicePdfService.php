@@ -35,6 +35,7 @@ class InvoicePdfService
             'settings' => $settings,
             'money' => app(MoneyFormatter::class),
             'lineItems' => $lineItems,
+            'groupedLineItems' => $this->presentation->groupedLineItems($lineItems),
             'dailyBillingTotals' => $this->presentation->dailyBillingTotals($lineItems),
             'billingSubtotals' => $this->presentation->billingSubtotals($lineItems),
         ])->render();

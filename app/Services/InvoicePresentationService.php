@@ -38,6 +38,8 @@ class InvoicePresentationService
                         'reference_label' => $this->referenceLabel($billingType),
                         'department_number' => null,
                         'room_number' => null,
+                        'service_type' => $category['service_type'] ?? null,
+                        'audience' => $category['audience'] ?? null,
                         'service' => $service,
                         'label' => $category['name'] ?? $entry->category_name_snapshot,
                         'quantity' => null,
@@ -66,6 +68,8 @@ class InvoicePresentationService
                                 ? ($detail['reference_number'] ?? null)
                                 : ($detail['room_number'] ?? null))
                             : null,
+                        'service_type' => $category['service_type'] ?? null,
+                        'audience' => $category['audience'] ?? null,
                         'service' => $service,
                         'label' => $detail['label'] ?? $category['name'] ?? $entry->category_name_snapshot,
                         'quantity' => $detail['quantity'] ?? null,
@@ -75,6 +79,45 @@ class InvoicePresentationService
                         'total_cents' => (int) ($detail['total_cents'] ?? 0),
                     ];
                 })->all();
+            })
+            ->values();
+    }
+
+    public function groupedLineItems(Collection $lineItems): Collection
+    {
+        return $lineItems
+            ->values()
+            ->groupBy(function (array $lineItem, int $index): string {
+                $identity = [
+                    (int) $lineItem['day'],
+                    (string) $lineItem['billing_type'],
+                    trim((string) ($lineItem['person_name'] ?? '')),
+                    trim((string) ($lineItem['reference_number'] ?? '')),
+                    trim((string) ($lineItem['room_number'] ?? '')),
+                    trim((string) ($lineItem['department_number'] ?? '')),
+                ];
+
+                if (collect(array_slice($identity, 2))->every(fn ($value) => $value === '')) {
+                    return 'unidentified-'.$index;
+                }
+
+                return json_encode($identity, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+            })
+            ->map(function (Collection $items): array {
+                $first = $items->first();
+
+                return [
+                    'day' => $first['day'],
+                    'billing_type' => $first['billing_type'],
+                    'billing_label' => $first['billing_label'],
+                    'person_name' => $first['person_name'],
+                    'reference_number' => $first['reference_number'],
+                    'reference_label' => $first['reference_label'],
+                    'department_number' => $first['department_number'],
+                    'room_number' => $first['room_number'],
+                    'items' => $items->values(),
+                    'total_cents' => (int) $items->sum('total_cents'),
+                ];
             })
             ->values();
     }

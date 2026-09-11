@@ -9,6 +9,7 @@ use App\Models\DailyRecord;
 use App\Models\MonthlyInvoice;
 use App\Models\UploadedDocument;
 use App\Models\User;
+use App\Services\InvoicePdfService;
 use App\Services\InvoicePresentationService;
 use App\Services\MoneyFormatter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -299,6 +300,14 @@ class InvoiceCatalogAdministrationTest extends TestCase
                 'billing_type' => 'hotel_guest',
                 'person_name' => 'Alex Martin',
                 'reference_number' => '478',
+            ], [
+                'label' => 'Chemise / Shirt',
+                'quantity' => 1,
+                'unit_price_cents' => 700,
+                'total_cents' => 700,
+                'billing_type' => 'hotel_guest',
+                'person_name' => 'Alex Martin',
+                'reference_number' => '478',
             ]],
             'source_type' => 'manual_monthly_grid',
         ]);
@@ -311,6 +320,7 @@ class InvoiceCatalogAdministrationTest extends TestCase
             'settings' => null,
             'money' => app(MoneyFormatter::class),
             'lineItems' => $lineItems,
+            'groupedLineItems' => $presentation->groupedLineItems($lineItems),
             'dailyBillingTotals' => $presentation->dailyBillingTotals($lineItems),
             'billingSubtotals' => $presentation->billingSubtotals($lineItems),
         ])->render();
@@ -318,12 +328,124 @@ class InvoiceCatalogAdministrationTest extends TestCase
         $this->assertStringContainsString('EMPLOYÉS', $html);
         $this->assertStringContainsString('CLIENTS', $html);
         $this->assertStringContainsString('Détail des items facturés', $html);
+        $this->assertStringNotContainsString('NOUS VOUS REMERCIONS DE VOTRE CONFIANCE.', $html);
+        $this->assertStringNotContainsString("Svp faire tous les chèques à l'ordre de", $html);
         $this->assertStringContainsString('Complet 2 pc / Suit 2 pcs', $html);
+        $this->assertStringContainsString('Chemise / Shirt', $html);
         $this->assertStringContainsString('Alex Martin', $html);
+        $this->assertSame(1, substr_count($html, '<strong>Alex Martin</strong>'));
         $this->assertStringContainsString('No de chambre: 478', $html);
         $this->assertStringContainsString('12,95 $', $html);
-        $this->assertStringContainsString('25,90 $', $html);
+        $this->assertStringContainsString('32,90 $', $html);
         $this->assertStringNotContainsString('Item 9</th>', $html);
+    }
+
+    public function test_english_client_gets_a_grouped_english_invoice_pdf(): void
+    {
+        Storage::fake('public');
+
+        $admin = $this->user('super_admin', 'admin-english-pdf@test.com');
+        $client = $this->client('English Hotel');
+        $client->update(['default_language' => 'en']);
+        $category = ClientCategory::create([
+            'client_id' => $client->id,
+            'name' => 'Trouser',
+            'service_type' => 'dry_cleaning',
+            'audience' => 'employees',
+            'default_price_cents' => 500,
+            'is_taxable' => true,
+            'is_active' => true,
+        ]);
+        $invoice = $this->invoice($client, $admin, 'TEST-ENGLISH-0826');
+        $invoice->update(['category_snapshot' => [[
+            'id' => $category->id,
+            'name' => 'Trouser',
+            'service_type' => 'dry_cleaning',
+            'audience' => 'employees',
+            'is_taxable' => true,
+        ]]]);
+        $invoice->entries()->create([
+            'service_day' => 31,
+            'client_category_id' => $category->id,
+            'category_name_snapshot' => 'Trouser',
+            'amount_cents' => 2050,
+            'item_details' => [[
+                'label' => 'Trouser',
+                'quantity' => 2,
+                'unit_price_cents' => 500,
+                'total_cents' => 1000,
+                'billing_type' => 'employee',
+                'person_name' => 'Bell',
+                'reference_number' => '001-3',
+            ], [
+                'label' => 'Shirts',
+                'quantity' => 2,
+                'unit_price_cents' => 350,
+                'total_cents' => 700,
+                'billing_type' => 'employee',
+                'person_name' => 'Bell',
+                'reference_number' => '001-3',
+            ], [
+                'label' => 'Shirts',
+                'quantity' => 1,
+                'unit_price_cents' => 350,
+                'total_cents' => 350,
+                'billing_type' => 'employee',
+                'person_name' => 'Alesso',
+                'reference_number' => '799-1',
+            ]],
+            'source_type' => 'manual_monthly_grid',
+        ]);
+
+        $invoice->load(['client', 'entries', 'adjustments']);
+        $presentation = app(InvoicePresentationService::class);
+        $lineItems = $presentation->lineItems($invoice);
+        $groupedLineItems = $presentation->groupedLineItems($lineItems);
+        $html = view('pdf.monthly-invoice', [
+            'invoice' => $invoice,
+            'settings' => null,
+            'money' => app(MoneyFormatter::class),
+            'lineItems' => $lineItems,
+            'groupedLineItems' => $groupedLineItems,
+            'dailyBillingTotals' => $presentation->dailyBillingTotals($lineItems),
+            'billingSubtotals' => $presentation->billingSubtotals($lineItems),
+        ])->render();
+
+        $this->assertCount(2, $groupedLineItems);
+        $this->assertCount(2, $groupedLineItems->first()['items']);
+        $this->assertStringContainsString('<html lang="en">', $html);
+        $this->assertStringContainsString('Invoice TEST-ENGLISH-0826', $html);
+        $this->assertStringContainsString('Bill to', $html);
+        $this->assertStringContainsString('Billed item details', $html);
+        $this->assertStringContainsString('Employee', $html);
+        $this->assertStringContainsString('Tag no.: 001-3', $html);
+        $this->assertStringNotContainsString('Dry Cleaning · EMPLOYEES', $html);
+        $this->assertSame(1700, $groupedLineItems->first()['total_cents']);
+        $this->assertStringContainsString('$17.00', $html);
+        $this->assertStringContainsString('$5.00', $html);
+        $this->assertStringNotContainsString('THANK YOU FOR YOUR BUSINESS.', $html);
+        $this->assertStringNotContainsString('Please make all cheques payable to', $html);
+        $this->assertSame(1, substr_count($html, '<strong>Bell</strong>'));
+        $this->assertSame(1, substr_count($html, '<strong>Alesso</strong>'));
+        $this->assertStringNotContainsString('Détail des items', $html);
+
+        $path = app(InvoicePdfService::class)->generate($invoice);
+
+        Storage::disk('public')->assertExists($path);
+        $this->assertStringStartsWith('%PDF-', Storage::disk('public')->get($path));
+    }
+
+    public function test_client_form_offers_english_for_pdf_invoices(): void
+    {
+        $admin = $this->user('super_admin', 'admin-language-option@test.com');
+        $client = $this->client('Bilingual client');
+
+        $this->actingAs($admin)
+            ->get(route('clients.edit', $client))
+            ->assertOk()
+            ->assertSee('value="en"', false)
+            ->assertSee('Anglais')
+            ->assertSee('factures PDF');
     }
 
     private function user(string $role, string $email): User

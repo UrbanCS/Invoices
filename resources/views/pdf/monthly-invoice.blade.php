@@ -1,5 +1,22 @@
+@php
+    $client = $invoice->client;
+    $invoiceLanguage = in_array($client?->default_language, ['fr', 'en'], true)
+        ? $client->default_language
+        : 'fr';
+    $t = fn (string $key, array $replace = []) => trans('invoice.'.$key, $replace, $invoiceLanguage);
+    $businessLogo = $settings?->logo_path ? public_path('storage/'.$settings->logo_path) : null;
+    $clientLogo = $client?->logo_path ? public_path('storage/'.$client->logo_path) : null;
+    $formatQuantity = fn ($quantity) => $quantity === null
+        ? '—'
+        : rtrim(rtrim(number_format(
+            (float) $quantity,
+            2,
+            $invoiceLanguage === 'fr' ? ',' : '.',
+            $invoiceLanguage === 'fr' ? ' ' : ',',
+        ), '0'), $invoiceLanguage === 'fr' ? ',' : '.');
+@endphp
 <!doctype html>
-<html lang="fr">
+<html lang="{{ $invoiceLanguage }}">
 <head>
     <meta charset="utf-8">
     <style>
@@ -16,15 +33,17 @@
         .center { text-align: center; }
         .logo { max-height: 46px; max-width: 105px; }
         .client-box { margin-bottom: 12px; }
-        .monthly-table td { height: 13px; }
+        .monthly-table td { height: 10px; padding-top: 2px; padding-bottom: 2px; }
         .monthly-table .subtotal td { background: #e8f4ed; font-weight: bold; }
         .heading { color: #0f3f2f; font-size: 14px; font-weight: bold; margin: 12px 0 6px; }
         .detail-table { table-layout: fixed; }
-        .detail-table tr { page-break-inside: avoid; }
+        .detail-table tr, .detail-group { page-break-inside: avoid; }
         .detail-table th, .detail-table td { padding: 5px 4px; }
+        .detail-stack > div { min-height: 24px; }
+        .detail-stack > div + div { border-top: 1px solid #e4ebe7; margin-top: 4px; padding-top: 4px; }
         .totals { margin-left: auto; margin-top: 12px; width: 46%; }
+        .invoice-closing { page-break-inside: avoid; }
         .grand td { color: #0f3f2f; font-size: 12px; font-weight: bold; }
-        .footer { border-top: 2px solid #0f3f2f; font-weight: bold; margin-top: 14px; padding-top: 8px; text-align: center; }
         .page-break { page-break-before: always; }
         body.style-hotel .header { border-bottom-color: #1d6f50; }
         body.style-hotel th { background: #dff2ea; color: #0b4b35; }
@@ -32,13 +51,6 @@
     </style>
 </head>
 <body class="style-{{ $invoice->client?->invoice_style ?? 'standard' }}">
-@php
-    $client = $invoice->client;
-    $invoiceLanguage = $client?->default_language ?? 'fr';
-    $businessLogo = $settings?->logo_path ? public_path('storage/'.$settings->logo_path) : null;
-    $clientLogo = $client?->logo_path ? public_path('storage/'.$client->logo_path) : null;
-@endphp
-
 <div class="header">
     <table class="no-border">
         <tr>
@@ -51,13 +63,13 @@
                 <div class="brand">{{ $settings?->display_name ?? 'Nettoyeur Villeneuve' }}</div>
                 <div>{{ $settings?->legal_name }}</div>
                 <div>{{ trim(($settings?->address ?? '').' '.($settings?->city ?? '').' '.($settings?->province ?? '').' '.($settings?->postal_code ?? '')) }}</div>
-                <div>TPS/TVH: {{ $settings?->gst_number }} @if($settings?->qst_number) &nbsp; TVQ: {{ $settings->qst_number }} @endif</div>
+                <div>{{ $t('gst_hst') }}: {{ $settings?->gst_number }} @if($settings?->qst_number) &nbsp; {{ $t('qst') }}: {{ $settings->qst_number }} @endif</div>
             </td>
             <td class="right" style="width: 210px;">
-                <div class="brand">Facture {{ $invoice->invoice_number }}</div>
-                <div>Date: {{ $invoice->invoice_date?->format('Y-m-d') }}</div>
-                <div>Période: {{ $invoice->invoice_month }}/{{ $invoice->invoice_year }}</div>
-                <div><strong>Type: employés et clients</strong></div>
+                <div class="brand">{{ $t('invoice') }} {{ $invoice->invoice_number }}</div>
+                <div>{{ $t('date') }}: {{ $invoice->invoice_date?->format('Y-m-d') }}</div>
+                <div>{{ $t('period') }}: {{ $invoice->invoice_month }}/{{ $invoice->invoice_year }}</div>
+                <div><strong>{{ $t('type') }}: {{ $t('invoice_type') }}</strong></div>
             </td>
         </tr>
     </table>
@@ -69,23 +81,16 @@
             @if($clientLogo && file_exists($clientLogo))
                 <img class="logo" src="{{ $clientLogo }}" alt="Logo client"><br>
             @endif
-            <strong>Facturé à</strong><br>
-            {{ $client?->name ?? 'Client supprimé' }}<br>
+            <strong>{{ $t('bill_to') }}</strong><br>
+            {{ $client?->name ?? $t('deleted_client') }}<br>
             {{ $client?->billing_address }}<br>
             {{ trim(($client?->city ?? '').' '.($client?->province ?? '').' '.($client?->postal_code ?? '')) }}
         </td>
         <td>
-            <strong>Statut</strong><br>
-            {{ match($invoice->status) {
-                'draft' => 'Brouillon',
-                'approved' => 'Approuvée',
-                'sent' => 'Envoyée',
-                'paid' => 'Payée',
-                'cancelled' => 'Annulée',
-                default => $invoice->status,
-            } }}
+            <strong>{{ $t('status') }}</strong><br>
+            {{ $t('statuses.'.$invoice->status) }}
             @if($invoice->notes)
-                <br><br><strong>Notes</strong><br>{{ $invoice->notes }}
+                <br><br><strong>{{ $t('notes') }}</strong><br>{{ $invoice->notes }}
             @endif
         </td>
     </tr>
@@ -94,10 +99,10 @@
 <table class="monthly-table">
     <thead>
         <tr>
-            <th style="width: 55px;">Jour</th>
-            <th class="right">EMPLOYÉS</th>
-            <th class="right">CLIENTS</th>
-            <th class="right">TOTAL</th>
+            <th style="width: 55px;">{{ $t('day') }}</th>
+            <th class="right">{{ $t('employees') }}</th>
+            <th class="right">{{ $t('clients') }}</th>
+            <th class="right">{{ $t('total') }}</th>
         </tr>
     </thead>
     <tbody>
@@ -111,7 +116,7 @@
             </tr>
         @endfor
         <tr class="subtotal">
-            <td>Sous-totaux</td>
+            <td>{{ $t('subtotals') }}</td>
             <td class="right">{{ $money->format($billingSubtotals['employee'], $invoiceLanguage) }}</td>
             <td class="right">{{ $money->format($billingSubtotals['hotel_guest'], $invoiceLanguage) }}</td>
             <td class="right">{{ $money->format(array_sum($billingSubtotals), $invoiceLanguage) }}</td>
@@ -119,11 +124,62 @@
     </tbody>
 </table>
 
+<div class="page-break"></div>
+<div class="heading">{{ $t('detail_heading') }}</div>
+<table class="detail-table">
+    <thead>
+        <tr>
+            <th style="width: 28px;">{{ $t('day') }}</th>
+            <th style="width: 58px;">{{ $t('type') }}</th>
+            <th style="width: 105px;">{{ $t('name') }}</th>
+            <th style="width: 82px;">{{ $t('reference') }}</th>
+            <th>{{ $t('item') }}</th>
+            <th class="right" style="width: 34px;">{{ $t('quantity') }}</th>
+            <th class="right" style="width: 58px;">{{ $t('unit_price') }}</th>
+            <th class="right" style="width: 62px;">{{ $t('total') }}</th>
+        </tr>
+    </thead>
+    @forelse($groupedLineItems as $group)
+        <tbody class="detail-group">
+            @foreach($group['items'] as $item)
+                <tr>
+                    @if($loop->first)
+                        <td rowspan="{{ $group['items']->count() }}"><strong>{{ $group['day'] }}</strong></td>
+                        <td rowspan="{{ $group['items']->count() }}">{{ $t('billing_types.'.$group['billing_type']) }}</td>
+                        <td rowspan="{{ $group['items']->count() }}"><strong>{{ $group['person_name'] ?: '—' }}</strong></td>
+                        <td rowspan="{{ $group['items']->count() }}">
+                            {{ $t('tag_number') }}: {{ $group['reference_number'] ?: '—' }}
+                            @if($group['room_number'])
+                                <br><span class="muted">{{ $t('room_number') }}: {{ $group['room_number'] }}</span>
+                            @endif
+                            @if($group['department_number'])
+                                <br><span class="muted">{{ $t('department') }}: {{ $group['department_number'] }}</span>
+                            @endif
+                        </td>
+                    @endif
+                    <td><strong>{{ $item['label'] }}</strong></td>
+                    <td class="right">{{ $formatQuantity($item['quantity']) }}</td>
+                    <td class="right">{{ $item['unit_price_cents'] !== null ? $money->format($item['unit_price_cents'], $invoiceLanguage) : '—' }}</td>
+                    @if($loop->first)
+                        <td rowspan="{{ $group['items']->count() }}" class="right group-total"><strong>{{ $money->format($group['total_cents'], $invoiceLanguage) }}</strong></td>
+                    @endif
+                </tr>
+            @endforeach
+        </tbody>
+    @empty
+        <tbody><tr><td colspan="8" class="center" style="padding: 18px;">{{ $t('no_items') }}</td></tr></tbody>
+    @endforelse
+</table>
+
+<div class="invoice-closing">
 <table class="totals">
     <tr>
-        <td>Sous-total</td>
+        <td>{{ $t('subtotal') }}</td>
         <td class="right">{{ $money->format($invoice->subtotal_cents, $invoiceLanguage) }}</td>
     </tr>
+    @if($invoice->adjustments->isNotEmpty())
+        <tr><th colspan="2">{{ $t('adjustments') }}</th></tr>
+    @endif
     @foreach($invoice->adjustments as $adjustment)
         <tr>
             <td>{{ $adjustment->label }}</td>
@@ -134,72 +190,15 @@
     @endforeach
     @foreach($invoice->tax_profile_snapshot ?? [] as $tax)
         <tr>
-            <td>{{ $tax['label'] ?? 'Taxe' }}</td>
+            <td>{{ $tax['label'] ?? $t('tax') }}</td>
             <td class="right">{{ $money->format($tax['amount_cents'] ?? 0, $invoiceLanguage) }}</td>
         </tr>
     @endforeach
     <tr class="grand">
-        <td>Grand total</td>
+        <td>{{ $t('grand_total') }}</td>
         <td class="right">{{ $money->format($invoice->grand_total_cents, $invoiceLanguage) }}</td>
     </tr>
 </table>
-
-<div class="page-break"></div>
-<div class="heading">Détail des items facturés</div>
-<table class="detail-table">
-    <thead>
-        <tr>
-            <th style="width: 28px;">Jour</th>
-            <th style="width: 58px;">Type</th>
-            <th style="width: 105px;">Nom</th>
-            <th style="width: 82px;">Référence</th>
-            <th>Item</th>
-            <th class="right" style="width: 34px;">Qté</th>
-            <th class="right" style="width: 58px;">Prix unit.</th>
-            <th class="right" style="width: 62px;">Total</th>
-        </tr>
-    </thead>
-    <tbody>
-        @forelse($lineItems as $lineItem)
-            <tr>
-                <td><strong>{{ $lineItem['day'] }}</strong></td>
-                <td>{{ $lineItem['billing_label'] }}</td>
-                <td><strong>{{ $lineItem['person_name'] ?: '—' }}</strong></td>
-                <td>
-                    {{ $lineItem['reference_label'] }}: {{ $lineItem['reference_number'] ?: '—' }}
-                    @if($lineItem['room_number'])
-                        <br><span class="muted">No de chambre: {{ $lineItem['room_number'] }}</span>
-                    @endif
-                    @if($lineItem['department_number'])
-                        <br><span class="muted">Dépt.: {{ $lineItem['department_number'] }}</span>
-                    @endif
-                </td>
-                <td>
-                    <strong>{{ $lineItem['label'] }}</strong>
-                    @if($lineItem['service'])
-                        <br><span class="muted" style="font-size: 7px;">{{ $lineItem['service'] }}</span>
-                    @endif
-                </td>
-                <td class="right">
-                    {{ $lineItem['quantity'] !== null ? rtrim(rtrim(number_format((float) $lineItem['quantity'], 2, ',', ' '), '0'), ',') : '—' }}
-                </td>
-                <td class="right">
-                    {{ $lineItem['unit_price_cents'] !== null ? $money->format($lineItem['unit_price_cents'], $invoiceLanguage) : '—' }}
-                </td>
-                <td class="right"><strong>{{ $money->format($lineItem['total_cents'], $invoiceLanguage) }}</strong></td>
-            </tr>
-        @empty
-            <tr>
-                <td colspan="8" class="center" style="padding: 18px;">Aucun item facturé.</td>
-            </tr>
-        @endforelse
-    </tbody>
-</table>
-
-<div class="footer">
-    <div>{{ $invoice->thank_you_message }}</div>
-    <div class="muted">{{ $invoice->payment_instructions }}</div>
-    <div>Nettoyeur Villeneuve</div>
 </div>
 </body>
 </html>

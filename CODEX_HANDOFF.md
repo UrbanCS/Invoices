@@ -1,6 +1,6 @@
 # Handoff Codex - Nettoyeur Villeneuve
 
-Derniere mise a jour: 2026-08-27
+Derniere mise a jour: 2026-09-11
 
 Ce document est la source de contexte principale pour reprendre le projet dans un nouveau chat Codex ou sur un autre ordinateur. Il decrit l'etat local, les regles metier, le deploiement cPanel et les verifications encore necessaires.
 
@@ -21,11 +21,175 @@ Ce document est la source de contexte principale pour reprendre le projet dans u
 
 - Windows: `C:\Users\marca\OneDrive\Documents\Invoices\Invoices`
 - WSL: `/mnt/c/Users/marca/OneDrive/Documents/Invoices/Invoices`
-- Depot Git: la copie locale verifiee le 2026-08-27 ne contient pas de dossier `.git`; `git status` et `git diff` ne sont donc pas disponibles dans cette copie. Les mentions historiques de la branche `main` ci-dessous doivent etre confirmees depuis une copie qui contient les metadonnees Git.
+- Depot Git: la copie locale verifiee le 2026-08-31 ne contient pas de dossier `.git`; `git status` et `git diff` ne sont donc pas disponibles dans cette copie. Les mentions historiques de la branche `main` ci-dessous doivent etre confirmees depuis une copie qui contient les metadonnees Git.
 - Application: Laravel 11, PHP 8.2+, MySQL/MariaDB
 - Interface: Blade, Tailwind CSS, Alpine.js et Vite
 - PDF: `barryvdh/laravel-dompdf`
 - Production: PHP et MySQL seulement; aucun serveur Node, Redis, Docker ou worker permanent
+
+## Synchronisation Git du 2026-09-11
+
+- reprise depuis `UrbanCS/Invoices`, branche `main`, commit de depart `99d3b13dc907587ca64b460fdf409663ad24ab8c`;
+- integration des changements livres du 31 aout au 10 septembre, avec les tests et traductions correspondants;
+- comparaison effectuee dans un clone temporaire distinct; la copie OneDrive sans `.git` est conservee;
+- aucun fichier `.env`, base de donnees, PDF client, cache, dependance installee ou archive de sauvegarde ajoute au depot;
+- les details financiers des verifications de production sont omis de cette version publique du handoff;
+- derniere suite complete executee le 10 septembre: 51 tests, 415 assertions; runtime PHP temporaire absent le 11 septembre, donc suite non relancee pour cette synchronisation;
+- aucun nouveau deploiement du site requis pour cette operation Git.
+
+## Etat verifie et deploiement du 2026-09-10
+
+Demande livree:
+
+- ajout de `Sac / Bag` a 0 cent, actif et non taxable, dans les audiences `employees` et `unisex` des dix hotels actifs;
+- commande idempotente `php artisan app:apply-hotel-bag --dry-run` puis `--force`; fusion ciblee sans remplacement des autres articles ni de leurs prix;
+- ciblage des clients actifs de style hotel ou des alias explicites de configuration; Hilton Lac Leamy est inclus pour cet article gratuit, sans changer l'exclusion de son catalogue EMPLOYES regulier;
+- preservation des articles gratuits dans le calculateur manuel et a l'enregistrement/modification; les cases vides et les lignes a zero de categories payantes ne deviennent pas des entrees;
+- un seul total en cents entiers par groupe jour/type/personne/etiquette/chambre/departement, en HTML et PDF; les autres identites restent separees;
+- suppression des mentions service/audience sous les items factures; les regroupements restent disponibles dans le selecteur de catalogue;
+- totaux et ajustements (rabais, credits, frais) apres le detail des items; libelles PDF francais et anglais;
+- PDF avec cellules d'identite/total fusionnees et lignes d'articles alignees; repartition mensuelle compactee pour eviter une page supplementaire presque vide;
+- aucune migration ni dependance ajoutee.
+
+Verification locale:
+
+- absence de `.git` encore confirmee par git status et git diff; aucun commit/push ni annulation de changement;
+- sauvegarde des fichiers originaux dans `C:\Users\marca\AppData\Local\Temp\codex-bags-20260910-before`;
+- suite complete: 51 tests, 415 assertions, succes; six nouveaux tests dans `HotelBagAndInvoiceLayoutTest` couvrent le deploiement idempotent, les articles gratuits seuls et mixtes, creation/modification, le portail, les tarifs serveur, les audiences et la conversion commande-facture, les totaux groupes et les ajustements FR/EN;
+- tests PDF existants adaptes aux nouveaux totaux groupes et a la suppression des sous-libelles;
+- compilation Blade et rendus Dompdf locaux FR/EN reussis; inspection visuelle avec Poppler;
+- comparaison SHA-256 des huit fichiers existants avant deploiement: correspondance exacte local/serveur.
+
+Deploiement via le navigateur interne DirectAdmin:
+
+- sauvegarde complete annoncee prete le 2026-09-10 a 14 h 33 selon DirectAdmin;
+- sauvegarde ciblee privee `app_core/hotel-bags-backup-20260910-before-deploy.tar.gz`;
+- archive `app_core/hotel-bags-20260910.zip`, SHA-256 `dfffb4518d91b08e2f5b63db03c5563dc8b061bdd8ef27c221b724d80dea2ec2`, televersee avec le gestionnaire de fichiers, testee et extraite au terminal;
+- neuf fichiers deployes: `app/Services/InvoicePresentationService.php`, `app/Services/SharedCatalogService.php`, `app/Http/Controllers/MonthlyInvoiceController.php`, `app/Console/Commands/ApplyHotelBag.php`, `resources/views/monthly-invoices/form.blade.php`, `resources/views/monthly-invoices/show.blade.php`, `resources/views/pdf/monthly-invoice.blade.php`, `lang/fr/invoice.php`, `lang/en/invoice.php`;
+- lint PHP, optimize:clear, config:cache, route:cache et view:cache: succes;
+- dry-run verifie puis application aux hotels IDs 12, 15, 16, 17, 18, 19, 21, 22, 28, 29; resultat serveur `BAGS_OK hotels=10` confirme les deux audiences actives au prix zero pour chaque hotel;
+- facture reelle a plusieurs items verifiee: total unique par groupe et grand total inchange; sous-libelles retires;
+- PDF de cette facture regenere avec le bouton du site, telecharge, rendu et inspecte sur ses deux pages;
+- test navigateur sans enregistrement: employe avec deux sacs gratuits, puis client hotel avec un sac gratuit et deux suits a 2290 cents; les trois entrees du formulaire sont presentes et le total demeure 4580 cents; formulaire ensuite abandonne, aucune erreur console;
+- test serveur de syncGrid avec deux entrees gratuites employe/client dans une transaction annulee: `FREE_SAVE_OK employee+guest`, `ROLLBACK_OK no test entries retained`;
+- rendus serveur du template avec ajustements temporaires en memoire: `BOTTOM_ADJUSTMENTS_OK fr` et `en`; aucune modification des ajustements ou de la langue client en base;
+- aucune facture/commande de test conservee; seule la mise a jour des catalogues et la regeneration du PDF reel sont persistantes;
+- archives de sauvegarde/deploiement conservees, ne pas les supprimer sans autorisation.
+
+Important: un PDF deja genere conserve son ancienne presentation tant que le bouton `Generer PDF` n'est pas utilise. Aucun remplacement en masse des anciens PDF n'a ete effectue. Pour de futurs hotels, relancer la commande de sacs apres verification du dry-run; leur creation ne declenche pas automatiquement cette commande.
+
+## Etat verifie et deploiement du 2026-09-07
+
+Probleme signale dans `Etat-de-compte-facturedumois.mp4`:
+
+- les factures quotidiennes d'Arc The Hotel Ottawa etaient visibles dans Factures mais absentes des Etats de compte;
+- le controleur des etats de compte ne chargeait que `CleaningOrder`, et le bouton de facture mensuelle ne traitait que les commandes approuvees non facturees.
+
+Correctif:
+
+- ajout de la section `Factures du mois` aux etats de compte, filtree par client et periode de facturation (`invoice_month` / `invoice_year`), y compris si la date d'emission est ulterieure;
+- inclusion des factures approuvees, envoyees ou payees, exclusion des brouillons et annulations;
+- recapitulatif HTML et PDF unique des factures existantes, avec numeros, dates, statuts, montants avant taxes, taxes, paiements enregistres et solde;
+- sommes reprises des factures en cents entiers, sans recalculer leurs taxes avec le profil actuel du client;
+- le recapitulatif est un etat de compte et ne cree aucune nouvelle facture ni creance; sa regeneration ne duplique pas les revenus;
+- PDF en francais ou anglais selon la langue du client; aucun ajout du bloc de remerciement/cheques retire precedemment;
+- parcours distinct conserve pour les commandes non facturees, avec un libelle explicite;
+- nouvel acces GET authentifie `account-statements.summary`, reserve aux super administrateurs et employes;
+- aucune migration ni changement de dependance applicative.
+
+Validation:
+
+- suite PHPUnit complete: **45 tests, 341 assertions**, succes;
+- six nouveaux tests couvrent le cas des factures sans commandes, la periode/client/statut, les paiements, les acces, les parametres invalides et la regeneration PDF sans mutation;
+- apres mise en forme et ajustement de pagination: tests cibles 6/46 et compilation Blade reussis;
+- vrais PDF locaux francais (3 factures) et anglais (50 factures) rendus avec Dompdf et inspectes visuellement avec Poppler;
+- les trois fichiers remplaces en production ont ete compares a la copie locale de depart par SHA-256: correspondance exacte;
+- absence de `.git` confirmee: aucune annulation de changement local et aucun commit/push effectue.
+
+Deploiement via le navigateur interne et le terminal DirectAdmin:
+
+- sauvegarde complete annoncee prete le 2026-09-07 a 22 h 41, selon l'interface DirectAdmin;
+- sauvegarde ciblee `app_core/monthly-statement-backup-20260907-before-deploy.tar.gz`;
+- archive `app_core/monthly-statement-20260907.zip`, SHA-256 `975936158bd2045af66dfdbde2ea57d0cdc1ffcc8abf546b3cb25e9f93facbc8`;
+- sept fichiers applicatifs deployes dans `app_core`: `app/Services/AccountStatementService.php`, `app/Http/Controllers/AccountStatementController.php`, `resources/views/account-statements/index.blade.php`, `resources/views/pdf/account-statement.blade.php`, `routes/web.php`, `lang/fr/statement.php`, `lang/en/statement.php`;
+- lint PHP et `optimize:clear`, `config:cache`, `route:cache`, `view:cache`: succes;
+- test web authentifie sur un client avec plusieurs factures: montants avant taxes, taxes, total et solde verifies;
+- PDF telecharge avec le bouton du site, ouvert et inspecte: trois factures et montants corrects, document lisible sur une page;
+- controle croise sur un autre client et une autre periode: isolation et absence de reprise des factures d'un autre mois confirmees;
+- aucune erreur console relevee; aucune facture, commande ou donnee de test creee en production;
+- archives de sauvegarde et de deploiement conservees sur le serveur.
+
+Utilisation cliente: Etats de compte > choisir mois, annee et client > Filtrer > Telecharger le recapitulatif du mois (PDF).
+
+## Etat verifie et deploiement du 2026-09-01
+
+Demande livree:
+
+- memorisation des noms d'employes saisis dans la creation ou la modification manuelle d'une facture;
+- reutilisation du catalogue existant `client_employee_names`, deja alimente par les commandes du portail;
+- suggestions limitees au client ou a l'hotel selectionne, sans fuite entre hotels;
+- saisie libre conservee: un nouveau nom peut toujours etre entre et il est memorise seulement apres l'enregistrement reussi de la facture;
+- seules les lignes de type `employee` alimentent cette liste; les noms de clients d'hotel n'y sont pas ajoutes;
+- aucune migration requise, car la table et les relations existaient deja.
+
+Verification locale:
+
+- suite PHPUnit complete: 39 tests, 295 assertions, succes;
+- test cible ajoutant un employe a une facture manuelle, confirmant sa memorisation pour l'hotel choisi, son affichage au prochain formulaire et son absence pour un autre hotel: succes;
+- `php artisan view:cache`: succes;
+- lint PHP du controleur et du test modifies: succes;
+- verification syntaxique du JavaScript integre au formulaire: succes;
+- le dossier de travail principal ne contient toujours pas de metadonnees `.git`; aucun changement existant n'a ete supprime ou reinitialise.
+
+Production confirmee sur `https://appvilleneuve.webactiondemo.ca`:
+
+- sauvegarde complete DirectAdmin terminee le 2026-09-01 a 11 h 58 avant le deploiement;
+- sauvegarde ciblee de retour arriere creee dans `app_core`: `employee-name-memory-backup-20260901-before-deploy.tar.gz`;
+- archive `employee-name-memory-20260901.zip` verifiee par SHA-256 puis extraite dans `app_core`; elle contient uniquement le controleur et le formulaire de facture mensuelle prevus;
+- migration existante `2026_06_10_000001_add_client_ordering_tables` confirmee executee; aucune nouvelle migration lancee;
+- lint PHP du controleur deploye: succes;
+- `php artisan optimize:clear`, `config:cache`, `route:cache` et `view:cache` executes avec succes;
+- test serveur du nouveau mecanisme avec une facture existante dans une transaction annulee: `EMPLOYEE_MEMORY_OK`; aucune donnee de test n'a ete conservee;
+- verification authentifiee de `/monthly-invoices/create?client_id=15`: les sept noms deja memorises pour Metcalfe Hotel sont charges dans la liste de suggestions et le texte d'aide est visible;
+- verification croisee avec Lord Elgin Hotel (`client_id=19`): aucune suggestion de Metcalfe n'est presente, ce qui confirme l'isolation par hotel;
+- test JavaScript sans enregistrement: un nom temporaire et un numero d'etiquette ont ete ajoutes au resume et a la liste de suggestions de la page, puis la navigation a abandonne le formulaire; le nom temporaire n'etait plus present au rechargement et aucune facture n'a ete soumise;
+- aucune erreur JavaScript n'a ete relevee dans la console du navigateur pendant la verification;
+- les archives de deploiement et de retour arriere du 2026-09-01 sont conservees sur le serveur et ne doivent pas etre supprimees sans autorisation explicite.
+
+## Etat verifie et deploiement du 2026-08-31
+
+Demande livree:
+
+- regroupement, dans le detail HTML et PDF d'une facture, des items d'une meme personne, d'une meme journee et d'une meme identite sur une seule rangee;
+- conservation de rangees distinctes lorsque la personne ou sa reference differe;
+- conservation du titre original `Detail des items factures`;
+- suppression complete du bloc de pied de page contenant le remerciement, les instructions pour les cheques et le nom `Nettoyeur Villeneuve`;
+- ajout de l'anglais dans le choix de langue d'un client;
+- localisation des libelles, statuts, references, services et montants du PDF selon la langue du client.
+
+Verification locale:
+
+- suite PHPUnit complete: 38 tests, 285 assertions, succes;
+- `php artisan view:cache`: succes;
+- lint PHP de tous les fichiers PHP modifies: succes;
+- rendus Dompdf reels en francais et en anglais: succes; inspection visuelle du PDF anglais sans pied de page;
+- le cas Bell, jour 31, avec `Trouser` x1 et `Shirts` x2 est presente sur une seule rangee; Alesso reste sur une rangee distincte;
+- comparaison effectuee contre une copie temporaire propre de `main` au commit `99d3b13`: 10 fichiers modifies ou ajoutes, 428 insertions et 89 suppressions; `git diff --check` sans erreur;
+- le dossier de travail principal ne contient toujours pas de metadonnees `.git`; aucun changement existant n'a ete supprime ou reinitialise.
+
+Production confirmee sur `https://appvilleneuve.webactiondemo.ca`:
+
+- sauvegarde complete DirectAdmin terminee le 2026-08-31 a 16 h 50 avant le deploiement;
+- sauvegarde ciblee de retour arriere creee dans `app_core`: `invoice-pdf-localization-backup-20260831-before-deploy.tar.gz`;
+- archive de deploiement `invoice-pdf-localization-20260831.zip` televersee et extraite dans `app_core`; elle contient uniquement les huit fichiers applicatifs et de traduction prevus;
+- lint PHP en production des controleurs, services et fichiers de traduction: succes;
+- `php artisan optimize:clear`, `config:cache`, `route:cache` et `view:cache` executes avec succes;
+- verification authentifiee de la facture 0826: le titre original `Detail des items factures` est affiche; Bell et ses deux items du jour 31 sont regroupes sur une seule rangee, tandis qu'Alesso est separe;
+- verification authentifiee de la fiche Lord Elgin Hotel: le choix de langue propose `Francais` et `Anglais`, avec l'explication que ce choix pilote les libelles et les montants du PDF;
+- correctif d'interpretation redeploye avec `invoice-footer-correction-20260831.zip` apres creation de `invoice-footer-correction-backup-20260831-before-deploy.tar.gz`;
+- rendus PDF francais et anglais executes en memoire sur le serveur avec les donnees de la facture 0826, sans modifier la base ni le fichier PDF existant: titre original francais, titre anglais, absence du bloc de pied de page et sortie `%PDF-` valides (`FOOTER_CORRECTION_OK`);
+- aucune migration n'etait requise et aucune donnee de production n'a ete modifiee pendant les tests;
+- les archives de deploiement et de retour arriere du 2026-08-31 ont ete conservees sur le serveur; elles ne doivent pas etre supprimees sans autorisation explicite.
 
 ## Etat verifie et deploiement du 2026-08-27
 
@@ -548,6 +712,10 @@ git diff --check
 ```
 
 Le 2026-08-27, PHP 8.4.24 et Composer 2.10.3 ont ete installes uniquement dans des dossiers temporaires locaux pour valider le projet. Apres le correctif multi-item, la suite complete a reussi avec 36 tests et 260 assertions. Node a aussi permis `npm ci`, la verification syntaxique du JavaScript integre et un build Vite dans un dossier temporaire. Ces runtimes temporaires ne doivent pas etre supposes disponibles dans un prochain shell.
+
+Le 2026-08-31, apres le regroupement des lignes de facture, la localisation anglaise et la suppression du pied de page demande, la suite complete a reussi avec 38 tests et 285 assertions. Un vrai PDF anglais sans ce bloc a ete genere localement, rendu en image avec Poppler et inspecte visuellement. Les rendus francais et anglais ont ensuite ete executes en memoire sur la production avec Dompdf, sans ecriture en base ni remplacement du PDF existant.
+
+Le 2026-09-01, apres l'ajout de la memorisation des noms d'employes dans les factures manuelles, la suite complete a reussi avec 39 tests et 295 assertions. Le test cible confirme la memorisation apres enregistrement, les suggestions au prochain formulaire, l'isolation par hotel et la saisie libre. La production a aussi retourne `EMPLOYEE_MEMORY_OK` lors d'un essai dans une transaction annulee.
 
 Ne pas confondre une verification syntaxique, un build Vite ou un test manuel isole avec une preuve que toute la suite Laravel passe.
 

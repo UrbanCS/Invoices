@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\BusinessSetting;
 use App\Models\CleaningOrder;
 use App\Models\Client;
+use App\Models\ClientEmployeeName;
 use App\Models\DailyRecord;
 use App\Models\MonthlyInvoice;
 use App\Models\UploadedDocument;
@@ -56,7 +57,7 @@ class MonthlyInvoiceController extends Controller
     {
         $month = (int) request('month', now()->month);
         $year = (int) request('year', now()->year);
-        $clients = Client::with(['activeCategories', 'categories'])
+        $clients = Client::with(['activeCategories', 'categories', 'employeeNames'])
             ->where('is_active', true)
             ->orderBy('name')
             ->get();
@@ -90,8 +91,7 @@ class MonthlyInvoiceController extends Controller
         DailyRecordAggregationService $aggregator,
         AuditLogService $audit,
         InvoiceApprovalService $approval,
-    ): RedirectResponse
-    {
+    ): RedirectResponse {
         $data = $this->validated($request);
         $client = Client::with('activeCategories')->findOrFail($data['client_id']);
         $settings = BusinessSetting::first();
@@ -128,6 +128,10 @@ class MonthlyInvoiceController extends Controller
             }
         }
 
+        if ($data['source_mode'] === 'manual_grid') {
+            $this->rememberEmployeeNames($client, $invoice);
+        }
+
         $this->syncAdjustments($invoice, $request, $money);
         $this->recalculate($invoice, $calculator);
         $audit->record('monthly_invoice.created', $invoice);
@@ -148,8 +152,7 @@ class MonthlyInvoiceController extends Controller
         MonthlyInvoice $invoice,
         MoneyFormatter $money,
         InvoicePresentationService $presentation,
-    ): View
-    {
+    ): View {
         $this->authorizeInvoice($invoice);
         $invoice->load('client', 'entries', 'adjustments');
         $lineItems = $presentation->lineItems($invoice);
@@ -158,6 +161,7 @@ class MonthlyInvoiceController extends Controller
             'invoice' => $invoice,
             'money' => $money,
             'lineItems' => $lineItems,
+            'groupedLineItems' => $presentation->groupedLineItems($lineItems),
             'dailyBillingTotals' => $presentation->dailyBillingTotals($lineItems),
             'billingSubtotals' => $presentation->billingSubtotals($lineItems),
         ]);
@@ -166,7 +170,7 @@ class MonthlyInvoiceController extends Controller
     public function edit(MonthlyInvoice $invoice): View
     {
         $this->authorizeInvoice($invoice, true);
-        $clients = Client::with(['activeCategories', 'categories'])
+        $clients = Client::with(['activeCategories', 'categories', 'employeeNames'])
             ->where('is_active', true)
             ->orderBy('name')
             ->get();
@@ -210,6 +214,10 @@ class MonthlyInvoiceController extends Controller
             ]);
         }
 
+        if ($data['source_mode'] === 'manual_grid') {
+            $this->rememberEmployeeNames($client, $invoice);
+        }
+
         $invoice->adjustments()->delete();
         $this->syncAdjustments($invoice, $request, $money);
         $this->recalculate($invoice, $calculator);
@@ -251,6 +259,7 @@ class MonthlyInvoiceController extends Controller
     {
         $this->authorizeInvoice($invoice);
         abort_unless($invoice->pdf_path && Storage::disk('public')->exists($invoice->pdf_path), 404);
+
         return Storage::disk('public')->download($invoice->pdf_path);
     }
 
@@ -259,6 +268,7 @@ class MonthlyInvoiceController extends Controller
         $this->authorizeInvoice($invoice, true);
         $invoice->update(['status' => 'sent']);
         $audit->record('monthly_invoice.sent', $invoice);
+
         return back()->with('status', 'Facture marquée envoyée.');
     }
 
@@ -268,6 +278,7 @@ class MonthlyInvoiceController extends Controller
         $invoice->update(['status' => 'paid']);
         $invoice->payments()->create(['amount_cents' => $invoice->grand_total_cents, 'paid_at' => now(), 'method' => 'manual']);
         $audit->record('monthly_invoice.paid', $invoice);
+
         return back()->with('status', 'Facture marquée payée.');
     }
 
@@ -275,6 +286,7 @@ class MonthlyInvoiceController extends Controller
     {
         $this->authorizeInvoice($invoice, true);
         $invoice->update(['status' => 'cancelled']);
+
         return back()->with('status', 'Facture annulée.');
     }
 
@@ -331,6 +343,7 @@ class MonthlyInvoiceController extends Controller
     public function export(MonthlyInvoice $invoice, CsvExportService $csv)
     {
         $this->authorizeInvoice($invoice);
+
         return $csv->invoiceDetails($invoice);
     }
 
@@ -373,7 +386,7 @@ class MonthlyInvoiceController extends Controller
         foreach ($request->input('grid', []) as $day => $columns) {
             foreach ($columns as $categoryId => $amount) {
                 $cents = $money->parse($amount);
-                if ($cents <= 0) {
+                if ($cents < 0) {
                     continue;
                 }
                 $category = $client->activeCategories->firstWhere('id', (int) $categoryId);
@@ -385,7 +398,13 @@ class MonthlyInvoiceController extends Controller
                     $request->input("details.$day.$categoryId", []),
                     $money,
                     $category->audience === 'employees' ? 'employee' : 'hotel_guest',
+                    (int) $category->default_price_cents === 0,
                 );
+
+                // Keep explicitly selected free items, but never empty grid cells.
+                if ($cents === 0 && ((int) $category->default_price_cents !== 0 || ! $itemDetails || collect($itemDetails)->sum('total_cents') !== 0)) {
+                    continue;
+                }
 
                 $invoice->entries()->create([
                     'service_day' => (int) $day,
@@ -402,10 +421,10 @@ class MonthlyInvoiceController extends Controller
         return $createdEntries;
     }
 
-    private function itemDetails(array $rows, MoneyFormatter $money, string $defaultBillingType): array
+    private function itemDetails(array $rows, MoneyFormatter $money, string $defaultBillingType, bool $allowsFreeItems = false): array
     {
         return collect($rows)
-            ->map(function (array $row) use ($money, $defaultBillingType) {
+            ->map(function (array $row) use ($money, $defaultBillingType, $allowsFreeItems) {
                 $quantity = (float) str_replace(',', '.', (string) ($row['quantity'] ?? 0));
                 $unitPriceCents = $money->parse($row['unit_price'] ?? null);
                 $totalCents = (int) round($quantity * $unitPriceCents);
@@ -424,7 +443,7 @@ class MonthlyInvoiceController extends Controller
                     $referenceNumber = '';
                 }
 
-                if ($quantity <= 0 || $unitPriceCents <= 0 || $totalCents <= 0) {
+                if ($quantity <= 0 || $unitPriceCents < 0 || (! $allowsFreeItems && $totalCents <= 0)) {
                     return null;
                 }
 
@@ -467,6 +486,21 @@ class MonthlyInvoiceController extends Controller
             ->filter()
             ->values()
             ->all();
+    }
+
+    private function rememberEmployeeNames(Client $client, MonthlyInvoice $invoice): void
+    {
+        $invoice->entries()
+            ->get()
+            ->flatMap(fn ($entry) => $entry->item_details ?? [])
+            ->filter(fn ($detail) => is_array($detail) && ($detail['billing_type'] ?? null) === 'employee')
+            ->map(fn (array $detail) => trim((string) ($detail['person_name'] ?? '')))
+            ->filter()
+            ->unique(fn (string $name) => mb_strtolower($name))
+            ->each(fn (string $name) => ClientEmployeeName::firstOrCreate([
+                'client_id' => $client->id,
+                'name' => $name,
+            ]));
     }
 
     private function syncAdjustments(MonthlyInvoice $invoice, Request $request, MoneyFormatter $money): void

@@ -10,6 +10,33 @@ use Illuminate\Support\Str;
 
 class SharedCatalogService
 {
+    public function hotelBagClients(): Collection
+    {
+        // The free bag applies to every hotel, including the separate Lac-Leamy catalogue.
+        $aliases = collect(config('shared_catalogs.employee_hotel_targets', []))->flatten()
+            ->merge(config('shared_catalogs.hotel_source_aliases', []))
+            ->merge(collect(config('shared_catalogs.hotel_targets', []))->flatten())
+            ->merge(config('shared_catalogs.employee_hotel_exclusions', []))
+            ->map(fn (string $alias) => $this->normalize($alias));
+
+        return Client::where('is_active', true)->orderBy('name')->get()
+            ->filter(fn (Client $client) => $client->invoice_style === 'hotel'
+                || $aliases->contains($this->normalize($client->name)))
+            ->values();
+    }
+
+    public function applyHotelBag(Client $target): int
+    {
+        return $this->mergeCatalog($target, collect(['unisex', 'employees'])->map(fn (string $audience) => [
+            'name' => 'Sac / Bag',
+            'service_type' => 'other',
+            'audience' => $audience,
+            'default_price_cents' => 0,
+            'is_taxable' => false,
+            'sort_order' => 100,
+        ]));
+    }
+
     public function copyActiveCatalog(Client $source, Client $target): int
     {
         $items = $source->categories()

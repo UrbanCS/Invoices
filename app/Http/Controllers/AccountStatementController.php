@@ -6,11 +6,13 @@ use App\Models\BusinessSetting;
 use App\Models\CleaningOrder;
 use App\Models\Client;
 use App\Models\MonthlyInvoice;
+use App\Services\AccountStatementService;
 use App\Services\AuditLogService;
 use App\Services\InvoiceApprovalService;
 use App\Services\InvoiceCalculationService;
 use App\Services\InvoiceNumberService;
 use App\Services\MoneyFormatter;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -19,8 +21,13 @@ use Illuminate\View\View;
 
 class AccountStatementController extends Controller
 {
-    public function index(MoneyFormatter $money): View
+    public function index(Request $request, MoneyFormatter $money, AccountStatementService $statements): View
     {
+        $request->validate([
+            'month' => ['nullable', 'integer', 'between:1,12'],
+            'year' => ['nullable', 'integer', 'between:2000,2100'],
+            'client_id' => ['nullable', 'integer', 'exists:clients,id'],
+        ]);
         $month = (int) request('month', now()->month);
         $year = (int) request('year', now()->year);
         $clientId = request('client_id');
@@ -52,7 +59,43 @@ class AccountStatementController extends Controller
             'adjustmentCents' => $orders->sum('adjustment_cents'),
             'totalCents' => $orders->sum('total_cents'),
             'invoiceableOrdersCount' => $invoiceableOrdersCount,
+            'statement' => $statements->forPeriod($month, $year, $clientId ? (int) $clientId : null),
         ]);
+    }
+
+    public function summary(Request $request, AccountStatementService $statements, MoneyFormatter $money)
+    {
+        abort_unless(Auth::user()->canManage(), 403);
+        $data = $request->validate([
+            'month' => ['required', 'integer', 'between:1,12'],
+            'year' => ['required', 'integer', 'between:2000,2100'],
+            'client_id' => ['required', 'integer', 'exists:clients,id'],
+            'pdf' => ['nullable', 'boolean'],
+        ]);
+        $client = Client::findOrFail($data['client_id']);
+        $statement = $statements->forPeriod((int) $data['month'], (int) $data['year'], $client->id);
+        if ($statement['rows']->isEmpty()) {
+            return redirect()->route('account-statements.index', collect($data)->except('pdf')->all())
+                ->withErrors('Aucune facture approuvée, envoyée ou payée pour ce client et cette période.');
+        }
+        $viewData = [
+            'client' => $client,
+            'statement' => $statement,
+            'month' => (int) $data['month'],
+            'year' => (int) $data['year'],
+            'settings' => BusinessSetting::first(),
+            'money' => $money,
+            'isPdf' => $request->boolean('pdf'),
+        ];
+        if (! $viewData['isPdf']) {
+            return view('pdf.account-statement', $viewData);
+        }
+
+        // A statement only summarizes existing invoices; never create another receivable.
+        return Pdf::loadView('pdf.account-statement', $viewData)
+            ->setPaper('letter')
+            ->setOptions(['isRemoteEnabled' => false, 'defaultFont' => 'Helvetica'])
+            ->download(sprintf('etat-de-compte-%d-%04d-%02d.pdf', $client->id, $data['year'], $data['month']));
     }
 
     public function createInvoice(
@@ -61,8 +104,7 @@ class AccountStatementController extends Controller
         InvoiceCalculationService $calculator,
         AuditLogService $audit,
         InvoiceApprovalService $approval,
-    ): RedirectResponse
-    {
+    ): RedirectResponse {
         abort_unless(Auth::user()->canManage(), 403);
 
         $data = $request->validate([

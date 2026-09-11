@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Client;
 use App\Models\ClientCategory;
+use App\Models\ClientEmployeeName;
 use App\Models\MonthlyInvoice;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -79,6 +80,69 @@ class MonthlyInvoiceApprovalWorkflowTest extends TestCase
             ->assertSee('const target = appendItemToInvoice(item, identity);', false)
             ->assertSee('firstTarget ??= target;', false)
             ->assertDontSee('firstTarget ??= appendItemToInvoice(item, identity);', false);
+    }
+
+    public function test_manual_invoice_remembers_employee_names_for_the_selected_hotel(): void
+    {
+        [$admin, $client, $category] = $this->invoiceContext('super_admin');
+        $category->update(['audience' => 'employees']);
+        $otherClient = Client::create([
+            'name' => 'Autre hôtel',
+            'tax_profile' => 'on_hst',
+            'default_language' => 'fr',
+        ]);
+        ClientEmployeeName::create([
+            'client_id' => $otherClient->id,
+            'name' => 'Employé autre hôtel',
+        ]);
+
+        $invoiceData = [
+            'client_id' => $client->id,
+            'invoice_number' => 'REMEMBER-EMPLOYEE-0926',
+            'invoice_month' => 9,
+            'invoice_year' => 2026,
+            'invoice_date' => '2026-09-01',
+            'source_mode' => 'manual_grid',
+            'grid' => [1 => [$category->id => '5,00']],
+            'details' => [
+                1 => [
+                    $category->id => [[
+                        'label' => 'Chemise',
+                        'quantity' => '1',
+                        'unit_price' => '5,00',
+                        'billing_type' => 'employee',
+                        'person_name' => 'Julian',
+                        'reference_number' => 'ET-42',
+                    ]],
+                ],
+            ],
+        ];
+
+        $this->actingAs($admin)
+            ->post(route('monthly-invoices.store'), $invoiceData)
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('client_employee_names', [
+            'client_id' => $client->id,
+            'name' => 'Julian',
+        ]);
+        $this->assertDatabaseMissing('client_employee_names', [
+            'client_id' => $otherClient->id,
+            'name' => 'Julian',
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('monthly-invoices.create', ['client_id' => $client->id]))
+            ->assertOk()
+            ->assertSee('list="employee-name-options"', false)
+            ->assertSee('<option value="Julian"></option>', false)
+            ->assertDontSee('Employé autre hôtel');
+
+        $this->actingAs($admin)
+            ->get(route('monthly-invoices.create', ['client_id' => $otherClient->id]))
+            ->assertOk()
+            ->assertSee('<option value="Employé autre hôtel"></option>', false)
+            ->assertDontSee('<option value="Julian"></option>', false);
     }
 
     public function test_employee_cannot_approve_an_invoice(): void
